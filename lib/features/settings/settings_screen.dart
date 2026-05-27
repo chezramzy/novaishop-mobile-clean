@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/router/route_names.dart';
+import '../../data/repositories/repository_error.dart';
+import '../../data/repositories/update_repository.dart';
 import '../../design/design_system.dart';
 import '../auth/auth_controller.dart';
 import 'settings_preferences.dart';
@@ -22,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   SettingsState? _state;
+  bool _checkingUpdate = false;
 
   @override
   void initState() {
@@ -76,6 +79,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Text(message),
         ),
       );
+  }
+
+  void _error(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.danger,
+          content: Text(message),
+        ),
+      );
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    try {
+      final update = await UpdateRepository().checkLatestRelease();
+      if (!mounted) return;
+      _showUpdateSheet(update);
+    } on RepositoryException catch (error) {
+      if (mounted) _error(error.message);
+    } catch (_) {
+      if (mounted) _error('Verification de mise a jour impossible.');
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
+  }
+
+  void _showUpdateSheet(AppUpdateInfo update) {
+    showNovaSheet<void>(
+      context: context,
+      title: 'Mise a jour',
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NovaCard(
+            elevated: false,
+            color: update.isUpdateAvailable ? AppColors.butter : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  update.isUpdateAvailable
+                      ? Icons.system_update_alt_rounded
+                      : Icons.verified_rounded,
+                  color: update.isUpdateAvailable
+                      ? AppColors.warning
+                      : context.colors.textPrimary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    update.isUpdateAvailable
+                        ? 'Nouvelle version disponible: ${update.latestTag}.'
+                        : 'Cette installation est deja alignee sur ${update.latestTag}.',
+                    style: AppTypography.body.copyWith(height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Version installee: $appReleaseVersionLabel\nFichier: ${update.apkName}',
+            style: const TextStyle(color: AppColors.muted, height: 1.35),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          NovaButton.primary(
+            label: update.isUpdateAvailable
+                ? 'Telecharger la mise a jour'
+                : 'Ouvrir la release GitHub',
+            icon: Icons.open_in_new_rounded,
+            onPressed: () async {
+              final uri = Uri.parse(
+                update.isUpdateAvailable ? update.apkUrl : update.releaseUrl,
+              );
+              final launched = await launchUrl(
+                uri,
+                mode: LaunchMode.externalApplication,
+              );
+              if (!launched && sheetContext.mounted) {
+                Navigator.of(sheetContext).pop();
+                _error('Impossible d ouvrir le lien GitHub.');
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          NovaButton.ghost(
+            label: 'Fermer',
+            onPressed: () => Navigator.of(sheetContext).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Prépare une demande de suppression de compte (e-mail au support) puis
@@ -362,6 +462,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ).fadeSlideIn(delay: AppMotion.normal),
           const SizedBox(height: AppSpacing.lg),
+          const SectionHeader(title: 'Application'),
+          const SizedBox(height: AppSpacing.sm),
+          NovaCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xxs,
+            ),
+            child: _NavRow(
+              icon: Icons.system_update_alt_rounded,
+              title: _checkingUpdate
+                  ? 'Verification en cours...'
+                  : 'Verifier les mises a jour',
+              trailing: appReleaseVersionLabel,
+              onTap: _checkingUpdate ? () {} : _checkForUpdate,
+            ),
+          ).fadeSlideIn(delay: AppMotion.normal),
+          const SizedBox(height: AppSpacing.lg),
           if (user != null) ...[
             NovaButton.ghost(
               label: 'Déconnexion',
@@ -385,7 +502,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           const Center(
             child: Text(
-              'NovAiShop · version 1.0.0',
+              'NovAiShop - version 0.1.3-test',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),
