@@ -25,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   SettingsState? _state;
   bool _checkingUpdate = false;
+  bool _downloadingPatch = false;
 
   @override
   void initState() {
@@ -97,7 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_checkingUpdate) return;
     setState(() => _checkingUpdate = true);
     try {
-      final update = await UpdateRepository().checkLatestRelease();
+      final update = await UpdateRepository().checkUpdates();
       if (!mounted) return;
       _showUpdateSheet(update);
     } on RepositoryException catch (error) {
@@ -109,7 +110,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showUpdateSheet(AppUpdateInfo update) {
+  Future<void> _downloadPatch(
+    BuildContext sheetContext,
+    UpdateCheckResult update,
+  ) async {
+    if (_downloadingPatch) return;
+    setState(() => _downloadingPatch = true);
+    try {
+      final patch = await UpdateRepository().downloadPatchUpdate();
+      if (!mounted || !sheetContext.mounted) return;
+      Navigator.of(sheetContext).pop();
+      _showUpdateSheet(
+          UpdateCheckResult(patch: patch, release: update.release));
+    } on RepositoryException catch (error) {
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      if (mounted) _error(error.message);
+    } catch (_) {
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      if (mounted) _error('Telechargement du patch impossible.');
+    } finally {
+      if (mounted) setState(() => _downloadingPatch = false);
+    }
+  }
+
+  void _showUpdateSheet(UpdateCheckResult update) {
+    final patch = update.patch;
+    final release = update.release;
     showNovaSheet<void>(
       context: context,
       title: 'Mise a jour',
@@ -119,24 +145,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           NovaCard(
             elevated: false,
-            color: update.isUpdateAvailable ? AppColors.butter : null,
+            color: patch.canDownload || patch.restartRequired
+                ? AppColors.butter
+                : null,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  update.isUpdateAvailable
+                  patch.canDownload
+                      ? Icons.bolt_rounded
+                      : patch.restartRequired
+                          ? Icons.restart_alt_rounded
+                          : Icons.verified_rounded,
+                  color: patch.canDownload || patch.restartRequired
+                      ? AppColors.warning
+                      : context.colors.textPrimary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        patch.statusLabel,
+                        style: AppTypography.body.copyWith(
+                          fontWeight: FontWeight.w800,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        patch.isAvailable
+                            ? 'Patch actuel: ${patch.currentPatchNumber ?? 'aucun'}'
+                                '${patch.nextPatchNumber == null ? '' : ' - prochain: ${patch.nextPatchNumber}'}'
+                            : 'Les patchs rapides demandent une build Android Shorebird.',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (patch.canDownload || patch.restartRequired) ...[
+            NovaButton.primary(
+              label: patch.restartRequired
+                  ? 'Patch pret - redemarrer l app'
+                  : _downloadingPatch
+                      ? 'Telechargement...'
+                      : 'Telecharger le patch rapide',
+              icon: patch.restartRequired
+                  ? Icons.restart_alt_rounded
+                  : Icons.download_rounded,
+              onPressed: patch.restartRequired || _downloadingPatch
+                  ? () {}
+                  : () => _downloadPatch(sheetContext, update),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          NovaCard(
+            elevated: false,
+            color: release.isUpdateAvailable ? AppColors.butter : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  release.isUpdateAvailable
                       ? Icons.system_update_alt_rounded
-                      : Icons.verified_rounded,
-                  color: update.isUpdateAvailable
+                      : Icons.inventory_2_outlined,
+                  color: release.isUpdateAvailable
                       ? AppColors.warning
                       : context.colors.textPrimary,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    update.isUpdateAvailable
-                        ? 'Nouvelle version disponible: ${update.latestTag}.'
-                        : 'Cette installation est deja alignee sur ${update.latestTag}.',
+                    release.isUpdateAvailable
+                        ? 'APK complet disponible: ${release.latestTag}.'
+                        : 'APK complet aligne sur ${release.latestTag}.',
                     style: AppTypography.body.copyWith(height: 1.35),
                   ),
                 ),
@@ -145,18 +235,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Version installee: $appReleaseVersionLabel\nFichier: ${update.apkName}',
+            'Version installee: $appReleaseVersionLabel\nFichier APK: ${release.apkName}',
             style: const TextStyle(color: AppColors.muted, height: 1.35),
           ),
           const SizedBox(height: AppSpacing.lg),
           NovaButton.primary(
-            label: update.isUpdateAvailable
-                ? 'Telecharger la mise a jour'
+            label: release.isUpdateAvailable
+                ? 'Telecharger l APK complet'
                 : 'Ouvrir la release GitHub',
             icon: Icons.open_in_new_rounded,
             onPressed: () async {
               final uri = Uri.parse(
-                update.isUpdateAvailable ? update.apkUrl : update.releaseUrl,
+                release.isUpdateAvailable ? release.apkUrl : release.releaseUrl,
               );
               final launched = await launchUrl(
                 uri,
@@ -502,7 +592,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           const Center(
             child: Text(
-              'NovAiShop - version 0.1.3-test',
+              'NovAiShop - version 0.1.4-test',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),

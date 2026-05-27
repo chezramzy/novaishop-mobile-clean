@@ -1,7 +1,7 @@
 name: novaishop_mobile
 description: Autonomous Flutter mobile app for the NovAiShop marketplace.
 publish_to: none
-version: 0.1.0+1
+version: 0.1.4+4
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -21,6 +21,7 @@ dependencies:
   intl: ^0.20.2
   provider: ^6.1.2
   shared_preferences: ^2.3.2
+  shorebird_code_push: ^2.0.6
   supabase_flutter: ^2.0.0
   url_launcher: ^6.3.1
 
