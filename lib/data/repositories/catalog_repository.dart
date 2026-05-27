@@ -1,4 +1,5 @@
 import '../../core/local_backend/local_backend.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_collection.dart';
 import '../models/category.dart';
 import '../models/listing.dart';
@@ -132,15 +133,26 @@ class CatalogRepository {
     int pageSize = 20,
   }) async {
     try {
-      final items = await LocalBackend.instance.listings(
-        query: query,
-        categoryType: categoryType,
-        categoryId: categoryId,
-        status: status,
-        page: page,
-        pageSize: pageSize,
-      );
-      var listings = items.map(Listing.fromJson).toList();
+      var request = Supabase.instance.client.from('listings').select();
+      if (categoryType != null && categoryType.isNotEmpty) {
+        request = request.eq('category_type', categoryType);
+      }
+      if (categoryId != null && categoryId.isNotEmpty) {
+        request = request.eq('category_id', categoryId);
+      }
+      if (status != null && status.isNotEmpty) {
+        request = request.eq('status', status);
+      }
+      if (query != null && query.trim().isNotEmpty) {
+        request = request.ilike('title', '%${query.trim()}%');
+      }
+      final rows = await request
+          .order('created_at', ascending: false)
+          .range((page - 1) * pageSize, (page * pageSize) - 1);
+      var listings = rows
+          .whereType<Map>()
+          .map((row) => Listing.fromJson(Map<String, dynamic>.from(row)))
+          .toList();
       if (minPrice != null) {
         listings = listings.where((item) => item.price >= minPrice).toList();
       }
@@ -159,6 +171,14 @@ class CatalogRepository {
   /// Fetches a single listing by its slug.
   Future<Listing> getListing(String slug) async {
     try {
+      final rows = await Supabase.instance.client
+          .from('listings')
+          .select()
+          .or('slug.eq.$slug,id.eq.$slug')
+          .limit(1);
+      if (rows.isNotEmpty) {
+        return Listing.fromJson(Map<String, dynamic>.from(rows.first as Map));
+      }
       final json = await LocalBackend.instance.listingBySlug(slug);
       return Listing.fromJson(json);
     } catch (error) {

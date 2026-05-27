@@ -6,6 +6,7 @@ import 'app/novaishop_app.dart';
 import 'core/session/session_scope.dart';
 import 'core/supabase/supabase_config.dart';
 import 'data/repositories/address_repository.dart';
+import 'data/repositories/admin_repository.dart';
 import 'data/repositories/ai_repository.dart';
 import 'data/repositories/catalog_repository.dart';
 import 'data/repositories/coupon_repository.dart';
@@ -67,6 +68,7 @@ class _Bootstrap extends StatelessWidget {
 
         // -------- Public repositories (no token) --------
         Provider(create: (_) => AddressRepository()),
+        Provider(create: (_) => const AdminRepository()),
 
         // -------- Token-dependent repositories --------
         // Catalog & shop forward the token (admins see unpublished data)

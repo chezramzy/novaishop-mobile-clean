@@ -60,6 +60,7 @@ class RouteNames {
   static const legal = '/support/legal';
   static const contact = '/support/contact';
   static const partnerApplication = '/support/partner-application';
+  static const admin = '/admin';
 
   // Seller space (WS7).
   static const sellerHub = '/seller';

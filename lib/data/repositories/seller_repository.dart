@@ -1,5 +1,6 @@
 import '../../core/api/api_exception.dart';
 import '../../core/local_backend/local_backend.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_collection.dart';
 import '../models/listing.dart';
 import '../models/order.dart';
@@ -70,6 +71,10 @@ class SellerRepository {
     try {
       final json = await LocalBackend.instance.dashboard(_accessToken);
       if (json == null) return null;
+      final remoteListings = await _partnerRemoteListings();
+      if (remoteListings != null) {
+        json['listings'] = remoteListings;
+      }
       return SellerDashboardSummary.fromJson(json);
     } on LocalBackendException catch (error) {
       throw RepositoryException(error.message);
@@ -89,6 +94,10 @@ class SellerRepository {
       );
       final json = await LocalBackend.instance.dashboard(_accessToken);
       if (json == null) return null;
+      final remoteListings = await _partnerRemoteListings();
+      if (remoteListings != null) {
+        json['listings'] = remoteListings;
+      }
       return SellerDashboardSummary.fromJson(json);
     } on LocalBackendException catch (error) {
       throw RepositoryException(error.message);
@@ -257,9 +266,12 @@ class SellerRepository {
   }) async {
     _requireToken();
     try {
-      final json = await LocalBackend.instance.createListing(
-        accessToken: _accessToken,
-        shopId: shopId,
+      final ownerUserId = _localUserId;
+      if (ownerUserId == null) {
+        throw SellerException('Reconnectez-vous pour publier un produit.');
+      }
+      final json = await _createRemoteListing(
+        ownerUserId: ownerUserId,
         categoryId: categoryId,
         categoryType: categoryType,
         title: title,
@@ -282,6 +294,63 @@ class SellerRepository {
         'Connexion au serveur impossible. Vérifiez votre réseau.',
       );
     }
+  }
+
+  Future<Map<String, dynamic>> _createRemoteListing({
+    required String ownerUserId,
+    required String categoryId,
+    required String categoryType,
+    required String title,
+    required String description,
+    required double price,
+    required String currency,
+    required int inventory,
+    required String imageUrl,
+    Map<String, dynamic>? attributes,
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final slug = _slug('$title-$now');
+    final mergedAttributes = <String, dynamic>{
+      ...?attributes,
+      'partnerUserId': ownerUserId,
+      'submittedFrom': 'mobile_app',
+    };
+    final rows = await Supabase.instance.client
+        .from('listings')
+        .insert({
+          'vendor_id': 'vendor-1',
+          'shop_id': 'shop-1',
+          'category_id': categoryId,
+          'category_type': categoryType,
+          'slug': slug,
+          'title': title.trim(),
+          'description': description.trim(),
+          'status': 'pending_review',
+          'price': price,
+          'currency': currency,
+          'inventory': inventory,
+          'featured': false,
+          'image_url': imageUrl.trim().isEmpty ? null : imageUrl.trim(),
+          'attributes': mergedAttributes,
+          'partner_user_id': ownerUserId,
+        })
+        .select()
+        .limit(1);
+    return Map<String, dynamic>.from(rows.first as Map);
+  }
+
+  Future<List<Map<String, dynamic>>?> _partnerRemoteListings() async {
+    final ownerUserId = _localUserId;
+    if (ownerUserId == null) return null;
+    final rows = await Supabase.instance.client
+        .from('listings')
+        .select()
+        .eq('partner_user_id', ownerUserId)
+        .order('created_at', ascending: false);
+    return rows
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
   }
 
   /// Updates an existing listing (`PATCH /v1/listings/:id`). Only the
@@ -365,5 +434,23 @@ class SellerRepository {
       default:
         return parsed ?? 'Une erreur est survenue. Veuillez réessayer.';
     }
+  }
+
+  String? get _localUserId {
+    final token = _accessToken;
+    if (token == null || !token.startsWith('local:')) return null;
+    return token.substring('local:'.length);
+  }
+
+  String _slug(String value) {
+    final normalized = value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r"['’]"), '')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return normalized.isEmpty
+        ? 'produit-${DateTime.now().millisecondsSinceEpoch}'
+        : normalized;
   }
 }

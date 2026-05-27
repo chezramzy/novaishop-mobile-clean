@@ -87,10 +87,11 @@ class Listing {
   factory Listing.fromJson(Map<String, dynamic> json) {
     return Listing(
       id: Json.str(json['id']),
-      vendorId: Json.str(json['vendorId']),
-      shopId: Json.str(json['shopId']),
-      categoryId: Json.str(json['categoryId']),
-      categoryType: Json.str(json['categoryType'], 'product'),
+      vendorId: Json.str(json['vendorId'] ?? json['vendor_id']),
+      shopId: Json.str(json['shopId'] ?? json['shop_id']),
+      categoryId: Json.str(json['categoryId'] ?? json['category_id']),
+      categoryType:
+          Json.str(json['categoryType'] ?? json['category_type'], 'product'),
       slug: Json.str(json['slug']),
       title: Json.str(json['title']),
       description: Json.str(json['description']),
@@ -99,13 +100,15 @@ class Listing {
       currency: Json.str(json['currency'], 'XOF'),
       inventory: Json.integer(json['inventory']),
       featured: Json.boolean(json['featured']),
-      imageUrl: Json.strOrNull(json['imageUrl']),
+      imageUrl: Json.strOrNull(json['imageUrl'] ?? json['image_url']),
       attributes: Json.obj(json['attributes']),
-      originalPrice: Json.dblOrNull(json['originalPrice']),
-      isFlashSale: Json.boolean(json['isFlashSale']),
-      flashSaleEndAt: Json.strOrNull(json['flashSaleEndAt']),
-      createdAt: Json.str(json['createdAt']),
-      updatedAt: Json.str(json['updatedAt']),
+      originalPrice:
+          Json.dblOrNull(json['originalPrice'] ?? json['original_price']),
+      isFlashSale: Json.boolean(json['isFlashSale'] ?? json['is_flash_sale']),
+      flashSaleEndAt:
+          Json.strOrNull(json['flashSaleEndAt'] ?? json['flash_sale_end_at']),
+      createdAt: Json.str(json['createdAt'] ?? json['created_at']),
+      updatedAt: Json.str(json['updatedAt'] ?? json['updated_at']),
     );
   }
 }

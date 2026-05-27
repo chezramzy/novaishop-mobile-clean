@@ -1,6 +1,7 @@
 import '../../app/router/app_router.dart';
 import '../../app/router/route_names.dart';
 import '../../data/models/auth_user.dart';
+import '../admin/admin_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 import '../support/contact_screen.dart';
@@ -27,4 +28,5 @@ final FeatureRoutes accountRoutes = FeatureRoutes(<String, RouteArgsBuilder>{
       ),
   RouteNames.contact: (_) => const ContactScreen(),
   RouteNames.partnerApplication: (_) => const PartnerApplicationScreen(),
+  RouteNames.admin: (_) => const AdminScreen(),
 });

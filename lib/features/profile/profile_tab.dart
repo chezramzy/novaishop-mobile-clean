@@ -82,6 +82,7 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthController>().user;
+    final isAdmin = user?.email.toLowerCase() == 'blorayworld@gmail.com';
 
     return SoftGradientScaffold(
       child: ListView(
@@ -157,6 +158,12 @@ class _ProfileTabState extends State<ProfileTab> {
               badge: _unread > 0 ? '$_unread' : null,
               onTap: () => _open(RouteNames.notifications),
             ),
+            if (isAdmin)
+              _MenuItem(
+                icon: Icons.admin_panel_settings_rounded,
+                label: 'Administration',
+                onTap: () => _open(RouteNames.admin),
+              ),
           ]),
           const SizedBox(height: AppSpacing.lg),
           const SectionHeader(title: 'Préférences & aide'),
@@ -176,9 +183,9 @@ class _ProfileTabState extends State<ProfileTab> {
           if (user != null) ...[
             const SizedBox(height: AppSpacing.xl),
             NovaButton.ghost(
-            label: 'Déconnexion',
-            icon: Icons.logout_rounded,
-            onPressed: _confirmLogout,
+              label: 'Déconnexion',
+              icon: Icons.logout_rounded,
+              onPressed: _confirmLogout,
             ).fadeSlideIn(delay: AppMotion.slow),
           ],
           const SizedBox(height: AppSpacing.md),
