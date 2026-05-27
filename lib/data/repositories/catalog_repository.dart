@@ -1,4 +1,3 @@
-import '../../core/local_backend/local_backend.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/api_collection.dart';
 import '../models/category.dart';
@@ -109,9 +108,16 @@ class CatalogRepository {
   /// Lists categories from the API.
   Future<ApiCollection<Category>> getCategories() async {
     try {
-      final items = await LocalBackend.instance.categories();
+      final rows = await Supabase.instance.client
+          .from('categories')
+          .select()
+          .order('name');
+      final items = rows
+          .whereType<Map>()
+          .map((row) => Category.fromJson(Map<String, dynamic>.from(row)))
+          .toList();
       return ApiCollection(
-        items: items.map(Category.fromJson).toList(),
+        items: items,
         total: items.length,
       );
     } catch (error) {
@@ -179,8 +185,7 @@ class CatalogRepository {
       if (rows.isNotEmpty) {
         return Listing.fromJson(Map<String, dynamic>.from(rows.first as Map));
       }
-      final json = await LocalBackend.instance.listingBySlug(slug);
-      return Listing.fromJson(json);
+      throw RepositoryException('Produit introuvable.');
     } catch (error) {
       if (error is RepositoryException) rethrow;
       throw RepositoryErrorMapper.wrap(error);
@@ -226,9 +231,9 @@ class CatalogRepository {
   /// Aggregate marketplace statistics.
   Future<CatalogStats> getStats() async {
     try {
-      final listings = await LocalBackend.instance.listings(pageSize: 1000);
+      final listings = await getListings(status: 'published', pageSize: 1000);
       return CatalogStats(
-        totalListings: listings.length,
+        totalListings: listings.total,
         totalSellers: 0,
         totalOrders: 0,
         totalUsers: 0,
