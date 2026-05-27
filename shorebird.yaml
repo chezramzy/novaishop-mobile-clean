@@ -1,0 +1,8 @@
+# This file is used by Shorebird release builds.
+# CI overwrites app_id from the GitHub Actions variable SHOREBIRD_APP_ID.
+# The value below is a placeholder so Flutter can include the asset locally.
+app_id: 00000000-0000-0000-0000-000000000000
+
+# NovaShop surfaces update checks inside the app, so automatic background
+# download is intentionally disabled.
+auto_update: false

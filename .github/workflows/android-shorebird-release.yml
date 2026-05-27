@@ -1,0 +1,86 @@
+name: Android Shorebird Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub release tag to publish, for example v0.1.5-test
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build patchable Android APK
+    runs-on: ubuntu-latest
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      SHOREBIRD_APP_ID: ${{ vars.SHOREBIRD_APP_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Shorebird configuration
+        shell: bash
+        run: |
+          test -n "$SHOREBIRD_TOKEN" || {
+            echo "Missing repository secret SHOREBIRD_TOKEN";
+            exit 1;
+          }
+          test -n "$SHOREBIRD_APP_ID" || {
+            echo "Missing repository variable SHOREBIRD_APP_ID";
+            exit 1;
+          }
+          cat > shorebird.yaml <<EOF
+          app_id: $SHOREBIRD_APP_ID
+          auto_update: false
+          EOF
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
+
+      - name: Fetch dependencies
+        run: shorebird flutter pub get
+
+      - name: Analyze
+        run: shorebird flutter analyze
+
+      - name: Test
+        run: shorebird flutter test
+
+      - name: Shorebird Android release
+        id: shorebird-release
+        uses: shorebirdtech/shorebird-release@v1
+        with:
+          args: --artifact apk
+          flutter-version: latest
+          platform: android
+          working-directory: .
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "NovaShop-${{ inputs.release_tag }}-shorebird.apk"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: NovaShop Android ${{ inputs.release_tag }}
+          body: |
+            Shorebird patchable Android release.
+
+            Shorebird release version: ${{ steps.shorebird-release.outputs.release-version }}
+          files: NovaShop-${{ inputs.release_tag }}-shorebird.apk
