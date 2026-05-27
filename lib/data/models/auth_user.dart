@@ -1,0 +1,217 @@
+import 'package:flutter/material.dart';
+
+/// Account roles available on the NovAiShop unified marketplace.
+///
+/// Identifiers are kept aligned with the web storefront registration flow
+/// (`apps/storefront` -> register types) so a single Supabase account works
+/// across web and mobile.
+enum AccountRole {
+  individualBuyer,
+  wholesaleBuyer,
+  individualSeller,
+  professionalSeller,
+  deliveryPartner,
+}
+
+extension AccountRoleX on AccountRole {
+  /// Stable identifier shared with the web app and the API.
+  String get id {
+    switch (this) {
+      case AccountRole.individualBuyer:
+        return 'client_particulier';
+      case AccountRole.wholesaleBuyer:
+        return 'client_grossiste';
+      case AccountRole.individualSeller:
+        return 'vendeur_particulier';
+      case AccountRole.professionalSeller:
+        return 'vendeur_professionnel';
+      case AccountRole.deliveryPartner:
+        return 'livreur';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case AccountRole.individualBuyer:
+        return 'Client particulier';
+      case AccountRole.wholesaleBuyer:
+        return 'Client grossiste';
+      case AccountRole.individualSeller:
+        return 'Partenaire particulier';
+      case AccountRole.professionalSeller:
+        return 'Partenaire professionnel';
+      case AccountRole.deliveryPartner:
+        return 'Livreur';
+    }
+  }
+
+  String get tagline {
+    switch (this) {
+      case AccountRole.individualBuyer:
+        return 'Achetez pour vous';
+      case AccountRole.wholesaleBuyer:
+        return 'Achetez en gros';
+      case AccountRole.individualSeller:
+        return 'Proposez vos produits';
+      case AccountRole.professionalSeller:
+        return 'Gerez un catalogue partenaire';
+      case AccountRole.deliveryPartner:
+        return 'Livrez les commandes';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case AccountRole.individualBuyer:
+        return 'Découvrez et achetez des produits pour un usage personnel.';
+      case AccountRole.wholesaleBuyer:
+        return 'Accédez aux tarifs de gros et commandez en grande quantité.';
+      case AccountRole.individualSeller:
+        return 'Mettez en vente vos articles sans entreprise enregistrée.';
+      case AccountRole.professionalSeller:
+        return 'Ouvrez une boutique vérifiée et vendez à grande échelle.';
+      case AccountRole.deliveryPartner:
+        return 'Récupérez et livrez les commandes aux clients.';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AccountRole.individualBuyer:
+        return Icons.shopping_bag_outlined;
+      case AccountRole.wholesaleBuyer:
+        return Icons.inventory_2_outlined;
+      case AccountRole.individualSeller:
+        return Icons.storefront_outlined;
+      case AccountRole.professionalSeller:
+        return Icons.store_mall_directory_outlined;
+      case AccountRole.deliveryPartner:
+        return Icons.local_shipping_outlined;
+    }
+  }
+
+  bool get isSeller =>
+      this == AccountRole.individualSeller ||
+      this == AccountRole.professionalSeller;
+
+  bool get isBuyer =>
+      this == AccountRole.individualBuyer || this == AccountRole.wholesaleBuyer;
+
+  /// Whether the role is a delivery partner / driver.
+  bool get isDriver => this == AccountRole.deliveryPartner;
+
+  /// The API-side `UserRole` value (`client` | `seller` | `driver` | `admin`)
+  /// expected by endpoints such as the AI assistant.
+  String get apiRole {
+    if (isSeller) return 'seller';
+    if (isDriver) return 'driver';
+    return 'client';
+  }
+
+  /// Whether the sign-up form should collect business details.
+  bool get requiresBusinessName => this == AccountRole.professionalSeller;
+
+  static AccountRole fromId(String? id) {
+    switch (id) {
+      case 'client':
+        return AccountRole.individualBuyer;
+      case 'seller':
+        return AccountRole.individualSeller;
+      case 'driver':
+        return AccountRole.deliveryPartner;
+    }
+
+    return AccountRole.values.firstWhere(
+      (role) => role.id == id,
+      orElse: () => AccountRole.individualBuyer,
+    );
+  }
+}
+
+/// Authenticated marketplace user persisted locally between sessions.
+class AuthUser {
+  const AuthUser({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.role,
+    this.phone = '',
+    this.businessName = '',
+    this.avatarUrl,
+    this.emailVerified = false,
+  });
+
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String phone;
+  final AccountRole role;
+  final String businessName;
+  final String? avatarUrl;
+  final bool emailVerified;
+
+  String get fullName => '$firstName $lastName'.trim();
+
+  String get initials {
+    final first = firstName.trim();
+    final last = lastName.trim();
+    final a = first.isNotEmpty ? first[0] : '';
+    final b = last.isNotEmpty ? last[0] : '';
+    final combined = '$a$b'.toUpperCase();
+    if (combined.isNotEmpty) return combined;
+    return email.isNotEmpty ? email[0].toUpperCase() : 'N';
+  }
+
+  AuthUser copyWith({
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? phone,
+    AccountRole? role,
+    String? businessName,
+    String? avatarUrl,
+    bool? emailVerified,
+  }) {
+    return AuthUser(
+      id: id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      businessName: businessName ?? this.businessName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      emailVerified: emailVerified ?? this.emailVerified,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'firstName': firstName,
+      'lastName': lastName,
+      'email': email,
+      'phone': phone,
+      'role': role.id,
+      'businessName': businessName,
+      'avatarUrl': avatarUrl,
+      'emailVerified': emailVerified,
+    };
+  }
+
+  factory AuthUser.fromJson(Map<String, dynamic> json) {
+    return AuthUser(
+      id: json['id'] as String? ?? '',
+      firstName: json['firstName'] as String? ?? '',
+      lastName: json['lastName'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      role: AccountRoleX.fromId(json['role'] as String?),
+      businessName: json['businessName'] as String? ?? '',
+      avatarUrl: json['avatarUrl'] as String?,
+      emailVerified: json['emailVerified'] as bool? ?? false,
+    );
+  }
+}
