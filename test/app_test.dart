@@ -41,7 +41,7 @@ void main() {
                 OrderRepository(accessToken: auth.accessToken),
           ),
         ],
-        child: const NovAiShopApp(),
+        child: const NovAiShopApp(authStateChanges: Stream.empty()),
       ),
     );
 

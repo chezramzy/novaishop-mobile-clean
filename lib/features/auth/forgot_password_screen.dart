@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/router/route_names.dart';
 import '../../design/design_system.dart';
 import 'auth_controller.dart';
 import 'widgets/auth_scaffold.dart';
@@ -35,6 +34,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     try {
       await context.read<AuthController>().sendPasswordReset(_email.text);
       if (mounted) setState(() => _sent = true);
+    } on AuthException catch (error) {
+      if (mounted) showAuthMessage(context, error.message);
     } catch (_) {
       if (mounted) {
         showAuthMessage(
@@ -132,17 +133,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           style: AppTypography.bodyMuted,
         ).fadeSlideIn(delay: const Duration(milliseconds: 140)),
         const SizedBox(height: AppSpacing.xl),
-        NovaButton.primary(
-          label: "J'ai reçu le lien",
-          icon: Icons.lock_reset_rounded,
-          onPressed: () =>
-              Navigator.of(context).pushNamed(RouteNames.resetPassword),
-        ).fadeSlideIn(delay: const Duration(milliseconds: 200)),
-        const SizedBox(height: AppSpacing.xs),
         NovaButton.ghost(
           label: 'Retour à la connexion',
           onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        ).fadeSlideIn(delay: const Duration(milliseconds: 200)),
         const SizedBox(height: AppSpacing.xxs),
         TextButton(
           onPressed: () => setState(() => _sent = false),

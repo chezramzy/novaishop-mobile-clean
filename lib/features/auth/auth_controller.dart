@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 import '../../core/local_backend/local_backend.dart';
 import '../../data/models/auth_user.dart';
@@ -19,6 +20,7 @@ class AuthController extends ChangeNotifier {
   AuthController();
 
   static const _sessionKey = 'novaishop.auth.session';
+  static const _passwordResetRedirect = 'novaishop://reset-password';
 
   AuthUser? _user;
   String? _accessToken;
@@ -110,7 +112,47 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> sendPasswordReset(String email) async {
-    // Local backend mode: avoid leaking whether the email exists.
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      throw AuthException('Saisissez une adresse e-mail valide.');
+    }
+
+    try {
+      await supabase.Supabase.instance.client.auth.resetPasswordForEmail(
+        normalized,
+        redirectTo: _passwordResetRedirect,
+      );
+    } on supabase.AuthException catch (error) {
+      throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } catch (_) {
+      throw AuthException(
+        'Impossible de contacter Supabase. Verifiez votre connexion.',
+      );
+    }
+  }
+
+  Future<void> updateRecoveredPassword({required String newPassword}) async {
+    try {
+      final auth = supabase.Supabase.instance.client.auth;
+      if (auth.currentSession == null) {
+        throw AuthException(
+          'Lien de reinitialisation invalide ou expire. Demandez un nouveau lien.',
+        );
+      }
+
+      await auth.updateUser(
+        supabase.UserAttributes(password: newPassword),
+      );
+      await auth.signOut();
+    } on AuthException {
+      rethrow;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } catch (_) {
+      throw AuthException(
+        'Impossible de mettre a jour le mot de passe. Reessayez.',
+      );
+    }
   }
 
   Future<void> confirmEmailVerification() async {
@@ -147,9 +189,26 @@ class AuthController extends ChangeNotifier {
     required String currentPassword,
     required String newPassword,
   }) async {
-    throw AuthException(
-      'Le changement de mot de passe sera branche via Supabase Auth ensuite.',
-    );
+    final current = _user;
+    if (current == null || current.email.trim().isEmpty) {
+      throw AuthException('Reconnectez-vous pour modifier le mot de passe.');
+    }
+
+    try {
+      final auth = supabase.Supabase.instance.client.auth;
+      await auth.signInWithPassword(
+        email: current.email.trim().toLowerCase(),
+        password: currentPassword,
+      );
+      await auth.updateUser(supabase.UserAttributes(password: newPassword));
+      await auth.signOut();
+    } on supabase.AuthException catch (error) {
+      throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } catch (_) {
+      throw AuthException(
+        'Impossible de mettre a jour le mot de passe. Reessayez.',
+      );
+    }
   }
 
   Future<void> signOut() async {
@@ -225,5 +284,23 @@ class AuthController extends ChangeNotifier {
     if (_busy == value) return;
     _busy = value;
     notifyListeners();
+  }
+
+  String _friendlySupabaseAuthMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('invalid login') ||
+        lower.contains('invalid credentials')) {
+      return 'Mot de passe actuel incorrect.';
+    }
+    if (lower.contains('expired') || lower.contains('invalid')) {
+      return 'Lien de reinitialisation invalide ou expire.';
+    }
+    if (lower.contains('password')) {
+      return 'Le mot de passe ne respecte pas les regles de securite.';
+    }
+    if (lower.contains('rate') || lower.contains('too many')) {
+      return 'Trop de tentatives. Patientez avant de reessayer.';
+    }
+    return 'Operation impossible pour le moment. Reessayez.';
   }
 }

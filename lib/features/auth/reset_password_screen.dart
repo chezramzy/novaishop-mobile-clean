@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../app/router/route_names.dart';
 import '../../design/design_system.dart';
+import 'auth_controller.dart';
 import 'widgets/auth_scaffold.dart';
 
 /// Lets the user define a new password after following a reset link.
@@ -40,13 +42,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
 
     setState(() => _busy = true);
-    // The reset confirmation endpoint will be branched via Supabase Auth.
-    await Future<void>.delayed(AppMotion.slow);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _done = true;
-    });
+    try {
+      await context.read<AuthController>().updateRecoveredPassword(
+            newPassword: _password.text,
+          );
+      if (!mounted) return;
+      setState(() => _done = true);
+    } on AuthException catch (error) {
+      if (mounted) showAuthMessage(context, error.message);
+    } catch (_) {
+      if (mounted) {
+        showAuthMessage(
+          context,
+          'Impossible de reinitialiser le mot de passe. Reessayez.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _backToSignIn() {
