@@ -592,7 +592,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           const Center(
             child: Text(
-              'NovAiShop - version 0.1.4-test',
+              'NovAiShop - version 0.1.6-test',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),

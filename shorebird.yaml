@@ -1,8 +1,13 @@
-# This file is used by Shorebird release builds.
-# CI overwrites app_id from the GitHub Actions variable SHOREBIRD_APP_ID.
-# The value below is a placeholder so Flutter can include the asset locally.
-app_id: 00000000-0000-0000-0000-000000000000
+# This file is used to configure the Shorebird updater used by your app.
+# Learn more at https://docs.shorebird.dev
+# This file does not contain any sensitive information and should be checked into version control.
 
-# NovaShop surfaces update checks inside the app, so automatic background
-# download is intentionally disabled.
-auto_update: false
+# Your app_id is the unique identifier assigned to your app.
+# It is used to identify your app when requesting patches from Shorebird's servers.
+# It is not a secret and can be shared publicly.
+app_id: 484a258a-093d-4a56-9309-7ab7736b301c
+
+# auto_update controls if Shorebird should automatically update in the background on launch.
+# Manual checks remain available in Settings for status and full APK downloads.
+# https://pub.dev/packages/shorebird_code_push
+auto_update: true

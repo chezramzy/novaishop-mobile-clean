@@ -19,7 +19,7 @@ Do not commit tokens. The app id is not secret, but CI injects it into
 ## Create a patchable APK
 
 Run the GitHub Action `Android Shorebird Release` manually and provide a tag,
-for example `v0.1.5-test`.
+for example `v0.1.6-test`.
 
 The workflow:
 
@@ -30,6 +30,10 @@ The workflow:
 
 Install that APK on Android devices. Future Dart/UI fixes can then be delivered
 with Shorebird patches.
+
+Shorebird `auto_update` is enabled. Patch checks can still be triggered from the
+settings screen, but installed release builds also download available patches in
+the background on launch. The patch applies after the next app restart.
 
 ## Publish a small patch
 

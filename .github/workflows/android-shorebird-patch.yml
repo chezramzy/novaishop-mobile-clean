@@ -37,7 +37,7 @@ jobs:
           }
           cat > shorebird.yaml <<EOF
           app_id: $SHOREBIRD_APP_ID
-          auto_update: false
+          auto_update: true
           EOF
 
       - name: Setup Java
