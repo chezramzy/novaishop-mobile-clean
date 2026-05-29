@@ -100,6 +100,8 @@ class AuthController extends ChangeNotifier {
       rethrow;
     } on supabase.AuthException catch (error) {
       throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } on supabase.PostgrestException catch (error) {
+      throw AuthException(_friendlyProfileMessage(error.message));
     } catch (_) {
       throw AuthException(
         'Impossible de creer le compte. Verifiez votre connexion.',
@@ -358,6 +360,11 @@ class AuthController extends ChangeNotifier {
         lower.contains('invalid credentials')) {
       return 'Mot de passe actuel incorrect.';
     }
+    if (lower.contains('already registered') ||
+        lower.contains('already exists') ||
+        lower.contains('user_already_exists')) {
+      return 'Un compte existe deja avec cet e-mail. Connectez-vous plutot.';
+    }
     if (lower.contains('expired') || lower.contains('invalid')) {
       return 'Lien de reinitialisation invalide ou expire.';
     }
@@ -368,5 +375,15 @@ class AuthController extends ChangeNotifier {
       return 'Trop de tentatives. Patientez avant de reessayer.';
     }
     return 'Operation impossible pour le moment. Reessayez.';
+  }
+
+  String _friendlyProfileMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('row-level security') ||
+        lower.contains('permission denied') ||
+        lower.contains('403')) {
+      return 'Compte cree, mais le profil NovaShop n\'a pas pu etre initialise. Connectez-vous, puis reessayez.';
+    }
+    return 'Compte cree, mais le profil NovaShop n\'a pas pu etre initialise. Reessayez la connexion.';
   }
 }
