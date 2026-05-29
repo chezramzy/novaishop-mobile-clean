@@ -23,7 +23,7 @@ class _PartnerApplicationScreenState extends State<PartnerApplicationScreen> {
   final _whatsapp = TextEditingController();
   final _description = TextEditingController();
   final _images = <PartnerApplicationImage>[];
-  Future<Map<String, dynamic>?>? _latestFuture;
+  Future<PartnerApplication?>? _latestFuture;
   String? _latestUserId;
   bool _submitting = false;
 
@@ -112,11 +112,17 @@ class _PartnerApplicationScreenState extends State<PartnerApplicationScreen> {
     }
 
     return SoftGradientScaffold(
-      child: FutureBuilder<Map<String, dynamic>?>(
+      child: FutureBuilder<PartnerApplication?>(
         future: _latestFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return NovaErrorState(
+              message: 'Impossible de charger votre demande partenaire.',
+              onRetry: () => _refreshLatest(userId),
+            );
           }
           final application = snapshot.data;
           if (application != null) {
@@ -207,11 +213,11 @@ class _PartnerApplicationScreenState extends State<PartnerApplicationScreen> {
 class _ApplicationStatusView extends StatelessWidget {
   const _ApplicationStatusView({required this.application});
 
-  final Map<String, dynamic> application;
+  final PartnerApplication application;
 
   @override
   Widget build(BuildContext context) {
-    final status = '${application['status'] ?? 'new'}';
+    final status = application.status;
     final (label, message, icon) = switch (status) {
       'approved' => (
           'Demande approuvee',
@@ -234,7 +240,7 @@ class _ApplicationStatusView extends StatelessWidget {
           Icons.hourglass_top_rounded,
         ),
     };
-    final createdAt = '${application['created_at'] ?? ''}';
+    final createdAt = application.createdAt;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -448,12 +454,15 @@ class _ImageGrid extends StatelessWidget {
           );
         }
         final image = images[index];
+        final bytes = image.bytes;
         return Stack(
           children: [
             Positioned.fill(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                child: Image.memory(image.bytes, fit: BoxFit.cover),
+                child: bytes == null
+                    ? const ColoredBox(color: AppColors.butter)
+                    : Image.memory(bytes, fit: BoxFit.cover),
               ),
             ),
             Positioned(

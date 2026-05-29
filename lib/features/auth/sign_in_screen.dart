@@ -102,16 +102,15 @@ class _SignInScreenState extends State<SignInScreen> {
             const SizedBox(height: AppSpacing.xl),
             NovaTextField(
               controller: _identifier,
-              label: 'E-mail ou téléphone',
-              hint: 'vous@email.com ou +229...',
+              label: 'E-mail',
+              hint: 'vous@email.com',
               icon: Icons.account_circle_outlined,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               validator: (value) {
                 final text = (value ?? '').trim();
                 if (text.isEmpty) return 'Identifiant requis.';
-                if (text.contains('@')) return Validators.email(text);
-                return Validators.phone(text, optional: false);
+                return Validators.email(text);
               },
             ).fadeSlideIn(delay: const Duration(milliseconds: 160)),
             const SizedBox(height: AppSpacing.md),

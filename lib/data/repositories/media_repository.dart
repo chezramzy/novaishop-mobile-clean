@@ -178,9 +178,13 @@ class MediaRepository {
   }
 
   String _ownerUserId() {
+    final supabaseUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (supabaseUserId != null && supabaseUserId.isNotEmpty) {
+      return supabaseUserId;
+    }
     final token = _accessToken ?? '';
     if (token.startsWith('local:')) return token.substring('local:'.length);
-    return 'anonymous';
+    throw RepositoryException('Reconnectez-vous pour envoyer un fichier.');
   }
 
   String _objectKey({

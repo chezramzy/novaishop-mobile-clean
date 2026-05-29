@@ -1,17 +1,16 @@
-import '../../core/api/api_exception.dart';
-import '../../core/local_backend/local_backend.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/api_collection.dart';
 import '../models/listing.dart';
 import '../models/order.dart';
+import '../models/payment_record.dart';
 import '../models/seller_analytics.dart';
 import '../models/seller_dashboard.dart';
 import '../models/seller_workspace.dart';
+import '../models/shop.dart';
 import '../models/vendor_profile.dart';
 import 'repository_error.dart';
 
-/// Raised when a seller action fails, carrying a user-facing message.
-/// Retained for backward compatibility with existing seller screens.
 class SellerException implements Exception {
   SellerException(this.message);
 
@@ -21,120 +20,70 @@ class SellerException implements Exception {
   String toString() => message;
 }
 
-/// Authenticated access to the seller-facing API (`/v1/vendors/*` and
-/// `/v1/listings`). Token-dependent — every method requires a token.
 class SellerRepository {
   SellerRepository({required String? accessToken})
-      : _accessToken = accessToken,
-        _hasToken = accessToken != null && accessToken.isNotEmpty;
+      : _hasToken = accessToken != null &&
+            accessToken.isNotEmpty &&
+            !accessToken.startsWith('local:');
 
-  final String? _accessToken;
   final bool _hasToken;
 
   void _requireToken() {
-    if (!_hasToken) {
+    if (!_hasToken || Supabase.instance.client.auth.currentUser == null) {
       throw SellerException(
-        'Votre session a expiré. Reconnectez-vous pour gérer votre boutique.',
+        'Reconnectez-vous avec votre compte NovaShop pour gerer vos produits.',
       );
     }
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Dashboard & profile                                               */
-  /* ------------------------------------------------------------------ */
-
-  /// Loads the seller workspace summary. Returns `null` when the seller has
-  /// not created a shop yet (the API answers 404 in that case).
   Future<SellerWorkspace?> loadWorkspace() async {
-    _requireToken();
-    try {
-      final json = await LocalBackend.instance.dashboard(_accessToken);
-      if (json == null) return null;
-      return SellerWorkspace.fromDashboardJson(json);
-    } on LocalBackendException catch (error) {
-      throw SellerException(error.message);
-    } on ApiException catch (error) {
-      if (error.statusCode == 404) return null;
-      throw SellerException(_friendlyError(error));
-    } on SellerException {
-      rethrow;
-    } catch (_) {
-      throw SellerException(
-        'Connexion au serveur impossible. Vérifiez votre réseau.',
-      );
-    }
+    final dashboard = await getDashboard();
+    if (dashboard == null) return null;
+    return SellerWorkspace(
+      vendorId: dashboard.vendor.id,
+      shopId: dashboard.vendor.shopId,
+      shopName: 'Catalogue partenaire',
+      kycStatus: dashboard.vendor.kycStatus,
+      listings: dashboard.listings,
+      activeOrdersCount: dashboard.activeOrders.length,
+      pendingModerationCount: dashboard.pendingListings,
+    );
   }
 
-  /// Loads the full seller dashboard. Returns `null` when no shop exists.
   Future<SellerDashboardSummary?> getDashboard() async {
     _requireToken();
     try {
-      final json = await LocalBackend.instance.dashboard(_accessToken);
-      if (json == null) return null;
-      final remoteListings = await _partnerRemoteListings();
-      if (remoteListings != null) {
-        json['listings'] = remoteListings;
-      }
-      return SellerDashboardSummary.fromJson(json);
-    } on LocalBackendException catch (error) {
-      throw RepositoryException(error.message);
-    } on ApiException catch (error) {
-      if (error.statusCode == 404) return null;
-      throw RepositoryErrorMapper.wrap(error);
-    } catch (error) {
-      throw RepositoryErrorMapper.wrap(error);
-    }
-  }
-
-  Future<SellerDashboardSummary?> ensureApprovedPartnerDashboard() async {
-    _requireToken();
-    try {
-      await LocalBackend.instance.ensurePartnerWorkspace(
-        accessToken: _accessToken,
+      final vendor = await _myVendor();
+      if (vendor == null) return null;
+      final shop = await _shop(vendor.shopId);
+      final listings = await _partnerListings();
+      return SellerDashboardSummary(
+        vendor: vendor,
+        shop: shop,
+        listings: listings,
+        activeOrders: const [],
+        pendingPayouts: const <PaymentRecord>[],
+        moderationQueue: const <ModerationCase>[],
+        kycDocuments: const <KycDocument>[],
       );
-      final json = await LocalBackend.instance.dashboard(_accessToken);
-      if (json == null) return null;
-      final remoteListings = await _partnerRemoteListings();
-      if (remoteListings != null) {
-        json['listings'] = remoteListings;
-      }
-      return SellerDashboardSummary.fromJson(json);
-    } on LocalBackendException catch (error) {
-      throw RepositoryException(error.message);
     } catch (error) {
+      if (error is SellerException) rethrow;
       throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  /// The current seller's vendor profile. Returns `null` when not a vendor.
-  Future<VendorProfile?> getMyVendorProfile() async {
+  Future<SellerDashboardSummary?> ensureApprovedPartnerDashboard() {
+    return getDashboard();
+  }
+
+  Future<VendorProfile?> getMyVendorProfile() {
     _requireToken();
-    try {
-      final json = await LocalBackend.instance.dashboard(_accessToken);
-      if (json == null) return null;
-      return VendorProfile.fromJson(
-        Map<String, dynamic>.from(json['vendor'] as Map),
-      );
-    } on LocalBackendException catch (error) {
-      throw RepositoryException(error.message);
-    } on ApiException catch (error) {
-      if (error.statusCode == 404) return null;
-      throw RepositoryErrorMapper.wrap(error);
-    } catch (error) {
-      throw RepositoryErrorMapper.wrap(error);
-    }
+    return _myVendor();
   }
 
-  /// The current seller's analytics.
   Future<SellerAnalytics> getAnalytics() async {
-    _requireToken();
-    final dashboard = await LocalBackend.instance.dashboard(_accessToken);
-    final listings = dashboard == null
-        ? const <Listing>[]
-        : (dashboard['listings'] as List)
-            .whereType<Map>()
-            .map((item) => Listing.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+    final dashboard = await getDashboard();
+    final listings = dashboard?.listings ?? const <Listing>[];
     return SellerAnalytics(
       revenueTimeSeries: const [],
       bestSellers: const [],
@@ -158,12 +107,6 @@ class SellerRepository {
     );
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Vendor onboarding                                                  */
-  /* ------------------------------------------------------------------ */
-
-  /// Opens a shop for the current seller (vendor onboarding) — backward
-  /// compatible signature used by the existing create-shop screen.
   Future<void> createShop({
     required String shopName,
     required String shopDescription,
@@ -178,23 +121,11 @@ class SellerRepository {
     String shopTagline = '',
     String businessName = '',
   }) async {
-    await submitOnboarding(
-      shopName: shopName,
-      shopDescription: shopDescription,
-      sellerType: sellerType,
-      legalFullName: legalFullName,
-      supportEmail: supportEmail,
-      contactPhone: contactPhone,
-      country: country,
-      city: city,
-      addressLine: addressLine,
-      customerPromise: customerPromise,
-      shopTagline: shopTagline,
-      businessName: businessName,
+    throw SellerException(
+      'L espace partenaire est cree automatiquement apres approbation admin.',
     );
   }
 
-  /// Submits full vendor onboarding (`POST /v1/vendors/onboarding`).
   Future<void> submitOnboarding({
     required String shopName,
     required String shopDescription,
@@ -214,44 +145,23 @@ class SellerRepository {
     String shopTagline = '',
     String businessName = '',
     String supportPhone = '',
-  }) async {
-    _requireToken();
-    try {
-      await LocalBackend.instance.createShop(
-        accessToken: _accessToken,
-        shopName: shopName,
-        shopDescription: shopDescription,
-        sellerType: sellerType,
-        legalFullName: legalFullName,
-        supportEmail: supportEmail,
-        contactPhone: contactPhone,
-        country: country,
-        city: city,
-        addressLine: addressLine,
-        customerPromise: customerPromise,
-        focus: focus,
-        shopTagline: shopTagline,
-        businessName: businessName,
-      );
-    } on LocalBackendException catch (error) {
-      throw SellerException(error.message);
-    } on ApiException catch (error) {
-      throw SellerException(_friendlyError(error));
-    } on SellerException {
-      rethrow;
-    } catch (_) {
-      throw SellerException(
-        'Connexion au serveur impossible. Vérifiez votre réseau.',
-      );
-    }
+  }) {
+    return createShop(
+      shopName: shopName,
+      shopDescription: shopDescription,
+      sellerType: sellerType,
+      legalFullName: legalFullName,
+      supportEmail: supportEmail,
+      contactPhone: contactPhone,
+      country: country,
+      city: city,
+      addressLine: addressLine,
+      customerPromise: customerPromise,
+      shopTagline: shopTagline,
+      businessName: businessName,
+    );
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Listings                                                           */
-  /* ------------------------------------------------------------------ */
-
-  /// Publishes a new listing. Backward compatible with the existing
-  /// add-product screen (defaults to a product listing in XOF).
   Future<Listing> createListing({
     required String shopId,
     required String categoryId,
@@ -266,95 +176,47 @@ class SellerRepository {
   }) async {
     _requireToken();
     try {
-      final ownerUserId = _localUserId;
-      if (ownerUserId == null) {
-        throw SellerException('Reconnectez-vous pour publier un produit.');
+      final vendor = await _myVendor();
+      if (vendor == null || !vendor.isApproved) {
+        throw SellerException(
+          'Votre demande partenaire doit etre approuvee avant ajout produit.',
+        );
       }
-      final json = await _createRemoteListing(
-        ownerUserId: ownerUserId,
-        categoryId: categoryId,
-        categoryType: categoryType,
-        title: title,
-        description: description,
-        price: price,
-        currency: currency,
-        inventory: inventory,
-        imageUrl: imageUrl,
-        attributes: attributes,
-      );
-      return Listing.fromJson(json);
-    } on LocalBackendException catch (error) {
-      throw SellerException(error.message);
-    } on ApiException catch (error) {
-      throw SellerException(_friendlyError(error));
+      final userId = _userId;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final rows = await Supabase.instance.client
+          .from('listings')
+          .insert({
+            'vendor_id': vendor.id,
+            'shop_id': vendor.shopId,
+            'category_id': categoryId,
+            'category_type': categoryType,
+            'slug': _slug('$title-$now'),
+            'title': title.trim(),
+            'description': description.trim(),
+            'status': 'pending_review',
+            'price': price,
+            'currency': currency,
+            'inventory': inventory,
+            'featured': false,
+            'image_url': imageUrl.trim().isEmpty ? null : imageUrl.trim(),
+            'attributes': {
+              ...?attributes,
+              'partnerUserId': userId,
+              'submittedFrom': 'mobile_app',
+            },
+            'partner_user_id': userId,
+          })
+          .select()
+          .limit(1);
+      return Listing.fromJson(Map<String, dynamic>.from(rows.first as Map));
     } on SellerException {
       rethrow;
-    } catch (_) {
-      throw SellerException(
-        'Connexion au serveur impossible. Vérifiez votre réseau.',
-      );
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  Future<Map<String, dynamic>> _createRemoteListing({
-    required String ownerUserId,
-    required String categoryId,
-    required String categoryType,
-    required String title,
-    required String description,
-    required double price,
-    required String currency,
-    required int inventory,
-    required String imageUrl,
-    Map<String, dynamic>? attributes,
-  }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final slug = _slug('$title-$now');
-    final mergedAttributes = <String, dynamic>{
-      ...?attributes,
-      'partnerUserId': ownerUserId,
-      'submittedFrom': 'mobile_app',
-    };
-    final rows = await Supabase.instance.client
-        .from('listings')
-        .insert({
-          'vendor_id': 'vendor-1',
-          'shop_id': 'shop-1',
-          'category_id': categoryId,
-          'category_type': categoryType,
-          'slug': slug,
-          'title': title.trim(),
-          'description': description.trim(),
-          'status': 'pending_review',
-          'price': price,
-          'currency': currency,
-          'inventory': inventory,
-          'featured': false,
-          'image_url': imageUrl.trim().isEmpty ? null : imageUrl.trim(),
-          'attributes': mergedAttributes,
-          'partner_user_id': ownerUserId,
-        })
-        .select()
-        .limit(1);
-    return Map<String, dynamic>.from(rows.first as Map);
-  }
-
-  Future<List<Map<String, dynamic>>?> _partnerRemoteListings() async {
-    final ownerUserId = _localUserId;
-    if (ownerUserId == null) return null;
-    final rows = await Supabase.instance.client
-        .from('listings')
-        .select()
-        .eq('partner_user_id', ownerUserId)
-        .order('created_at', ascending: false);
-    return rows
-        .whereType<Map>()
-        .map((row) => Map<String, dynamic>.from(row))
-        .toList();
-  }
-
-  /// Updates an existing listing (`PATCH /v1/listings/:id`). Only the
-  /// provided fields are sent.
   Future<Listing> updateListing(
     String listingId, {
     String? title,
@@ -366,32 +228,35 @@ class SellerRepository {
     Map<String, dynamic>? attributes,
   }) async {
     _requireToken();
-    final body = <String, dynamic>{};
+    final body = <String, dynamic>{'status': 'pending_review'};
     if (title != null) body['title'] = title.trim();
     if (description != null) body['description'] = description.trim();
     if (price != null) body['price'] = price;
     if (currency != null) body['currency'] = currency;
     if (inventory != null) body['inventory'] = inventory;
     if (imageUrl != null) {
-      body['imageUrl'] = imageUrl.trim().isEmpty ? null : imageUrl.trim();
+      body['image_url'] = imageUrl.trim().isEmpty ? null : imageUrl.trim();
     }
-    if (attributes != null) body['attributes'] = attributes;
-
+    if (attributes != null) {
+      body['attributes'] = {
+        ...attributes,
+        'partnerUserId': _userId,
+        'submittedFrom': 'mobile_app',
+      };
+    }
     try {
-      final json = await LocalBackend.instance.updateListing(listingId, body);
-      return Listing.fromJson(json);
-    } on LocalBackendException catch (error) {
-      throw RepositoryException(error.message);
+      final rows = await Supabase.instance.client
+          .from('listings')
+          .update(body)
+          .eq('id', listingId)
+          .select()
+          .limit(1);
+      return Listing.fromJson(Map<String, dynamic>.from(rows.first as Map));
     } catch (error) {
       throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Seller orders                                                      */
-  /* ------------------------------------------------------------------ */
-
-  /// Orders containing items sold by [vendorId].
   Future<ApiCollection<Order>> getVendorOrders(
     String vendorId, {
     int page = 1,
@@ -407,7 +272,6 @@ class SellerRepository {
     );
   }
 
-  /// Updates the status of one of the vendor's orders.
   Future<Order> updateOrderStatus(
     String vendorId,
     String orderId, {
@@ -415,31 +279,82 @@ class SellerRepository {
     String? trackingNumber,
   }) async {
     _requireToken();
-    throw SellerException('Commande locale introuvable.');
+    throw SellerException(
+        'La gestion des commandes partenaire arrive ensuite.');
   }
 
-  String _friendlyError(ApiException error) {
-    final parsed = RepositoryErrorMapper.messageFromBody(error.message);
-    switch (error.statusCode) {
-      case 401:
-        return 'Votre session a expiré. Reconnectez-vous pour continuer.';
-      case 403:
-        return parsed ??
-            'Vous devez finaliser votre boutique avant cette action.';
-      case 409:
-        return parsed ?? 'Une boutique existe déjà pour ce compte.';
-      case 422:
-      case 400:
-        return parsed ?? 'Données invalides. Vérifiez le formulaire.';
-      default:
-        return parsed ?? 'Une erreur est survenue. Veuillez réessayer.';
+  Future<VendorProfile?> _myVendor() async {
+    final rows = await Supabase.instance.client
+        .from('vendors')
+        .select()
+        .eq('user_id', _userId)
+        .limit(1);
+    if (rows.isEmpty) return null;
+    return _vendorFromRow(Map<String, dynamic>.from(rows.first as Map));
+  }
+
+  Future<Shop> _shop(String shopId) async {
+    final rows = await Supabase.instance.client
+        .from('shops')
+        .select()
+        .eq('id', shopId)
+        .limit(1);
+    if (rows.isEmpty) {
+      return Shop(
+        id: shopId,
+        vendorId: '',
+        name: 'Catalogue partenaire',
+        slug: '',
+        description: '',
+        focus: const ['product'],
+        createdAt: '',
+      );
     }
+    final row = Map<String, dynamic>.from(rows.first as Map);
+    return Shop(
+      id: '${row['id'] ?? ''}',
+      vendorId: '${row['vendor_id'] ?? ''}',
+      name: 'Catalogue partenaire',
+      slug: '${row['slug'] ?? ''}',
+      description: '${row['description'] ?? ''}',
+      focus: const ['product'],
+      createdAt: '${row['created_at'] ?? ''}',
+    );
   }
 
-  String? get _localUserId {
-    final token = _accessToken;
-    if (token == null || !token.startsWith('local:')) return null;
-    return token.substring('local:'.length);
+  Future<List<Listing>> _partnerListings() async {
+    final rows = await Supabase.instance.client
+        .from('listings')
+        .select()
+        .eq('partner_user_id', _userId)
+        .order('created_at', ascending: false);
+    return rows
+        .whereType<Map>()
+        .map((row) => Listing.fromJson(Map<String, dynamic>.from(row)))
+        .toList();
+  }
+
+  VendorProfile _vendorFromRow(Map<String, dynamic> row) {
+    return VendorProfile(
+      id: '${row['id'] ?? ''}',
+      userId: '${row['user_id'] ?? ''}',
+      shopId: '${row['shop_id'] ?? ''}',
+      kycStatus: '${row['kyc_status'] ?? 'draft'}',
+      payoutAccountStatus: '${row['payout_account_status'] ?? 'pending'}',
+      commissionRate: (row['commission_rate'] as num?)?.toDouble() ?? 0,
+      documentsComplete: row['documents_complete'] == true,
+      sellerType: row['seller_type'] as String?,
+      legalFullName: row['legal_name'] as String?,
+      createdAt: '${row['created_at'] ?? ''}',
+    );
+  }
+
+  String get _userId {
+    final id = Supabase.instance.client.auth.currentUser?.id;
+    if (id == null || id.isEmpty) {
+      throw SellerException('Session introuvable. Reconnectez-vous.');
+    }
+    return id;
   }
 
   String _slug(String value) {

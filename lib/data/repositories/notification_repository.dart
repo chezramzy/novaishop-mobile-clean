@@ -1,10 +1,8 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_notification.dart';
 import '../models/json_utils.dart';
+import 'repository_error.dart';
 
 class NotificationPage {
   const NotificationPage({
@@ -36,97 +34,91 @@ class NotificationRepository {
   NotificationRepository({required String? accessToken})
       : _accessToken = accessToken;
 
-  static const _readKey = 'novaishop.local.read_notifications';
-
   final String? _accessToken;
+
+  bool get _hasSession =>
+      Supabase.instance.client.auth.currentSession != null &&
+      _accessToken != null &&
+      _accessToken.isNotEmpty &&
+      !_accessToken.startsWith('local:');
+
+  void _requireSession() {
+    if (!_hasSession) {
+      throw RepositoryException(
+          'Reconnectez-vous pour voir vos notifications.');
+    }
+  }
 
   Future<NotificationPage> getNotifications({
     int page = 1,
     int pageSize = 20,
   }) async {
-    final generated = await _partnerApprovalNotification();
-    final readIds = await _readIds();
-    final items = <AppNotification>[
-      if (generated != null)
-        generated.copyWith(read: readIds.contains(generated.id)),
-    ];
-    return NotificationPage(
-      items: items,
-      total: items.length,
-      unreadCount: items.where((item) => !item.read).length,
-      page: page,
-      totalPages: items.isEmpty ? 0 : 1,
-    );
-  }
-
-  Future<int> getUnreadCount() async {
-    final page = await getNotifications(pageSize: 1);
-    return page.unreadCount;
-  }
-
-  Future<AppNotification> markRead(String notificationId) async {
-    final ids = await _readIds();
-    ids.add(notificationId);
-    await _saveReadIds(ids);
-    final page = await getNotifications();
-    return page.items.firstWhere(
-      (item) => item.id == notificationId,
-      orElse: () => throw StateError('Notification locale introuvable.'),
-    );
-  }
-
-  Future<void> markAllRead() async {
-    final page = await getNotifications();
-    await _saveReadIds(page.items.map((item) => item.id).toSet());
-  }
-
-  Future<AppNotification?> _partnerApprovalNotification() async {
-    final userId = _localUserId;
-    if (userId == null || userId.isEmpty) return null;
+    _requireSession();
     try {
-      final response = await Supabase.instance.client
-          .from('partner_applications')
-          .select('id, status, updated_at, created_at')
-          .eq('applicant_user_id', userId)
-          .eq('status', 'approved')
-          .order('updated_at', ascending: false)
-          .limit(1);
-      if (response.isEmpty) return null;
-      final row = Map<String, dynamic>.from(response.first as Map);
-      final id = 'partner-application-approved-${row['id']}';
-      return AppNotification(
-        id: id,
-        userId: userId,
-        type: 'partner_application_approved',
-        title: 'Demande partenaire approuvee',
-        message:
-            'Votre espace partenaire est actif. Vous pouvez ajouter vos produits.',
-        read: false,
-        link: '/partner/home',
-        createdAt: '${row['updated_at'] ?? row['created_at'] ?? ''}',
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .select()
+          .order('created_at', ascending: false)
+          .range(from, to);
+      final items = rows
+          .whereType<Map>()
+          .map((row) => AppNotification.fromJson(
+                Map<String, dynamic>.from(row),
+              ))
+          .toList();
+      final unreadCount = await getUnreadCount();
+      return NotificationPage(
+        items: items,
+        total: items.length,
+        unreadCount: unreadCount,
+        page: page,
+        totalPages: items.isEmpty ? 0 : page,
       );
-    } catch (_) {
-      return null;
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  String? get _localUserId {
-    final token = _accessToken;
-    if (token == null || !token.startsWith('local:')) return null;
-    return token.substring('local:'.length);
+  Future<int> getUnreadCount() async {
+    if (!_hasSession) return 0;
+    try {
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .select('id')
+          .eq('read', false);
+      return rows.length;
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
   }
 
-  Future<Set<String>> _readIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_readKey);
-    if (raw == null || raw.isEmpty) return <String>{};
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return <String>{};
-    return decoded.whereType<String>().toSet();
+  Future<AppNotification> markRead(String notificationId) async {
+    _requireSession();
+    try {
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .update({'read': true})
+          .eq('id', notificationId)
+          .select()
+          .limit(1);
+      return AppNotification.fromJson(
+        Map<String, dynamic>.from(rows.first as Map),
+      );
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
   }
 
-  Future<void> _saveReadIds(Set<String> ids) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_readKey, jsonEncode(ids.toList()));
+  Future<void> markAllRead() async {
+    _requireSession();
+    try {
+      await Supabase.instance.client
+          .from('notifications')
+          .update({'read': true}).eq('read', false);
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
   }
 }

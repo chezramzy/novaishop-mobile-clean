@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Account roles available on the NovAiShop unified marketplace.
-///
-/// Identifiers are kept aligned with the web storefront registration flow
-/// (`apps/storefront` -> register types) so a single Supabase account works
-/// across web and mobile.
 enum AccountRole {
   individualBuyer,
   wholesaleBuyer,
   individualSeller,
   professionalSeller,
   deliveryPartner,
+  admin,
 }
 
 extension AccountRoleX on AccountRole {
-  /// Stable identifier shared with the web app and the API.
   String get id {
     switch (this) {
       case AccountRole.individualBuyer:
@@ -27,6 +22,8 @@ extension AccountRoleX on AccountRole {
         return 'vendeur_professionnel';
       case AccountRole.deliveryPartner:
         return 'livreur';
+      case AccountRole.admin:
+        return 'admin';
     }
   }
 
@@ -42,6 +39,8 @@ extension AccountRoleX on AccountRole {
         return 'Partenaire professionnel';
       case AccountRole.deliveryPartner:
         return 'Livreur';
+      case AccountRole.admin:
+        return 'Administration';
     }
   }
 
@@ -57,21 +56,25 @@ extension AccountRoleX on AccountRole {
         return 'Gerez un catalogue partenaire';
       case AccountRole.deliveryPartner:
         return 'Livrez les commandes';
+      case AccountRole.admin:
+        return 'Gerez NovaShop';
     }
   }
 
   String get description {
     switch (this) {
       case AccountRole.individualBuyer:
-        return 'Découvrez et achetez des produits pour un usage personnel.';
+        return 'Decouvrez et achetez des produits pour un usage personnel.';
       case AccountRole.wholesaleBuyer:
-        return 'Accédez aux tarifs de gros et commandez en grande quantité.';
+        return 'Accedez aux tarifs de gros et commandez en grande quantite.';
       case AccountRole.individualSeller:
-        return 'Mettez en vente vos articles sans entreprise enregistrée.';
+        return 'Proposez vos produits apres validation NovaShop.';
       case AccountRole.professionalSeller:
-        return 'Ouvrez une boutique vérifiée et vendez à grande échelle.';
+        return 'Gerez un catalogue partenaire valide par NovaShop.';
       case AccountRole.deliveryPartner:
-        return 'Récupérez et livrez les commandes aux clients.';
+        return 'Recuperez et livrez les commandes aux clients.';
+      case AccountRole.admin:
+        return 'Validez les partenaires et les produits.';
     }
   }
 
@@ -87,6 +90,8 @@ extension AccountRoleX on AccountRole {
         return Icons.store_mall_directory_outlined;
       case AccountRole.deliveryPartner:
         return Icons.local_shipping_outlined;
+      case AccountRole.admin:
+        return Icons.admin_panel_settings_outlined;
     }
   }
 
@@ -97,18 +102,16 @@ extension AccountRoleX on AccountRole {
   bool get isBuyer =>
       this == AccountRole.individualBuyer || this == AccountRole.wholesaleBuyer;
 
-  /// Whether the role is a delivery partner / driver.
   bool get isDriver => this == AccountRole.deliveryPartner;
+  bool get isAdmin => this == AccountRole.admin;
 
-  /// The API-side `UserRole` value (`client` | `seller` | `driver` | `admin`)
-  /// expected by endpoints such as the AI assistant.
   String get apiRole {
+    if (isAdmin) return 'admin';
     if (isSeller) return 'seller';
     if (isDriver) return 'driver';
     return 'client';
   }
 
-  /// Whether the sign-up form should collect business details.
   bool get requiresBusinessName => this == AccountRole.professionalSeller;
 
   static AccountRole fromId(String? id) {
@@ -119,6 +122,8 @@ extension AccountRoleX on AccountRole {
         return AccountRole.individualSeller;
       case 'driver':
         return AccountRole.deliveryPartner;
+      case 'admin':
+        return AccountRole.admin;
     }
 
     return AccountRole.values.firstWhere(
@@ -128,7 +133,6 @@ extension AccountRoleX on AccountRole {
   }
 }
 
-/// Authenticated marketplace user persisted locally between sessions.
 class AuthUser {
   const AuthUser({
     required this.id,
@@ -182,7 +186,7 @@ class AuthUser {
       phone: phone ?? this.phone,
       role: role ?? this.role,
       businessName: businessName ?? this.businessName,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatarUrl: avatarUrl,
       emailVerified: emailVerified ?? this.emailVerified,
     );
   }

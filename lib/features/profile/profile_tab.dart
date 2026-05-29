@@ -82,7 +82,7 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthController>().user;
-    final isAdmin = user?.email.toLowerCase() == 'blorayworld@gmail.com';
+    final isAdmin = user?.role.isAdmin == true;
 
     return SoftGradientScaffold(
       child: ListView(

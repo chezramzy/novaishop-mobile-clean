@@ -1,8 +1,6 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/supabase/supabase_config.dart';
 import '../models/partner_application.dart';
 import 'repository_error.dart';
 
@@ -10,132 +8,134 @@ class PartnerApplicationRepository {
   PartnerApplicationRepository({String? accessToken})
       : _accessToken = accessToken;
 
-  static const _localKey = 'novaishop.local.partner_applications';
-
   final String? _accessToken;
 
-  Future<void> submit({
+  bool get _hasSupabaseSession =>
+      Supabase.instance.client.auth.currentSession != null &&
+      _accessToken != null &&
+      _accessToken.isNotEmpty &&
+      !_accessToken.startsWith('local:');
+
+  void _requireSession() {
+    if (!_hasSupabaseSession) {
+      throw RepositoryException(
+        'Reconnectez-vous avec un compte NovaShop pour envoyer cette demande.',
+      );
+    }
+  }
+
+  Future<PartnerApplication> submit({
     required String whatsapp,
     required String productDescription,
     required List<PartnerApplicationImage> images,
     String? applicantUserId,
     String? applicantEmail,
   }) async {
-    final userId = applicantUserId?.trim() ?? '';
-    final existing = await getLatestForUser(userId);
-    if (existing != null) {
+    _requireSession();
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw RepositoryException('Session introuvable. Reconnectez-vous.');
+    }
+    final existing = await getLatestForUser(user.id);
+    if (existing != null && existing.isActive) {
       throw RepositoryException(
         'Une demande partenaire existe deja pour ce compte.',
       );
     }
-
-    final payload = {
-      'whatsapp': whatsapp.trim(),
-      'product_description': productDescription.trim(),
-      'product_images': images.map((image) => image.toJson()).toList(),
-      'applicant_user_id': applicantUserId,
-      'applicant_email': applicantEmail,
-      'source': 'mobile_app',
-      'status': 'new',
-    };
+    if (images.length != 3) {
+      throw RepositoryException('Ajoutez exactement 3 images de produits.');
+    }
 
     try {
-      await Supabase.instance.client.from('partner_applications').insert(
-            payload..removeWhere((_, value) => value == null),
-          );
-      await _saveLocal({...payload, 'synced': true});
-    } catch (_) {
-      await _saveLocal({...payload, 'synced': false});
-      throw RepositoryException(
-        'Demande sauvegardee localement. Reessayez quand la connexion revient.',
+      final uploadedImages = <Map<String, dynamic>>[];
+      for (var index = 0; index < images.length; index++) {
+        uploadedImages.add(
+          await _uploadApplicationImage(
+            userId: user.id,
+            image: images[index],
+            index: index,
+          ),
+        );
+      }
+
+      final rows = await Supabase.instance.client
+          .from('partner_applications')
+          .insert({
+            'whatsapp': whatsapp.trim(),
+            'product_description': productDescription.trim(),
+            'product_images': uploadedImages,
+            'applicant_user_id': user.id,
+            'applicant_email': user.email ?? applicantEmail,
+            'source': 'mobile_app',
+            'status': 'new',
+          })
+          .select()
+          .limit(1);
+      return PartnerApplication.fromJson(
+        Map<String, dynamic>.from(rows.first as Map),
       );
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  Future<Map<String, dynamic>?> getLatestForUser(String userId) async {
+  Future<PartnerApplication?> getLatestForUser(String userId) async {
+    _requireSession();
     if (userId.trim().isEmpty) return null;
     try {
       final response = await Supabase.instance.client
           .from('partner_applications')
-          .select(
-            'id, whatsapp, product_description, applicant_user_id, '
-            'applicant_email, status, admin_notes, created_at, updated_at',
-          )
+          .select()
           .eq('applicant_user_id', userId)
           .order('created_at', ascending: false)
           .limit(1);
-      if (response.isNotEmpty) {
-        final latest = Map<String, dynamic>.from(response.first as Map);
-        await _upsertLocal(latest);
-        return latest;
-      }
-    } catch (_) {
-      // Local session ids are used before Supabase Auth is wired end-to-end.
-      // If remote status lookup is unavailable, the local snapshot keeps the
-      // user from submitting duplicate applications on this device.
+      if (response.isEmpty) return null;
+      return PartnerApplication.fromJson(
+        Map<String, dynamic>.from(response.first as Map),
+      );
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
-    return getLatestLocalForUser(userId);
   }
 
-  Future<Map<String, dynamic>?> getLatestLocalForUser(String userId) async {
-    if (userId.trim().isEmpty) return null;
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_localKey);
-    if (raw == null || raw.isEmpty) return null;
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return null;
-    final rows = decoded
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .where((item) => item['applicant_user_id'] == userId)
-        .toList();
-    if (rows.isEmpty) return null;
-    rows.sort(
-      (a, b) => '${b['created_at'] ?? ''}'.compareTo(
-        '${a['created_at'] ?? ''}',
-      ),
-    );
-    return rows.first;
-  }
-
-  Future<void> _saveLocal(Map<String, dynamic> payload) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_localKey);
-    final current = raw == null || raw.isEmpty ? <dynamic>[] : jsonDecode(raw);
-    final rows = current is List ? current : <dynamic>[];
-    rows.add({
-      ...payload,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-      'accessTokenType':
-          _accessToken == null ? 'anonymous' : 'session_available',
-    });
-    await prefs.setString(_localKey, jsonEncode(rows));
-  }
-
-  Future<void> _upsertLocal(Map<String, dynamic> payload) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_localKey);
-    final current = raw == null || raw.isEmpty ? <dynamic>[] : jsonDecode(raw);
-    final rows = current is List ? current : <dynamic>[];
-    final index = rows.indexWhere((item) {
-      if (item is! Map) return false;
-      final id = item['id'];
-      return id != null && id == payload['id'];
-    });
-    final merged = {
-      ...payload,
-      'synced': true,
-      'accessTokenType':
-          _accessToken == null ? 'anonymous' : 'session_available',
+  Future<Map<String, dynamic>> _uploadApplicationImage({
+    required String userId,
+    required PartnerApplicationImage image,
+    required int index,
+  }) async {
+    final bytes = image.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      throw RepositoryException('Image produit invalide.');
+    }
+    final objectKey =
+        'uploads/$userId/partner_applications/${DateTime.now().toUtc().microsecondsSinceEpoch}-$index-${_safeFileName(image.fileName)}';
+    await Supabase.instance.client.storage
+        .from(SupabaseConfig.mediaBucket)
+        .uploadBinary(
+          objectKey,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: image.contentType,
+            upsert: false,
+          ),
+        );
+    return {
+      'fileName': image.fileName,
+      'contentType': image.contentType,
+      'objectKey': objectKey,
+      'publicUrl': Supabase.instance.client.storage
+          .from(SupabaseConfig.mediaBucket)
+          .getPublicUrl(objectKey),
     };
-    if (index == -1) {
-      rows.add(merged);
-    } else {
-      rows[index] = {
-        ...Map<String, dynamic>.from(rows[index] as Map),
-        ...merged,
-      };
-    }
-    await prefs.setString(_localKey, jsonEncode(rows));
+  }
+
+  String _safeFileName(String fileName) {
+    final safe = fileName
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
+        .replaceAll(RegExp(r'-{2,}'), '-')
+        .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '');
+    return safe.isEmpty ? 'produit.jpg' : safe;
   }
 }

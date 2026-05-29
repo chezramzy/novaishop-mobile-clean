@@ -44,7 +44,7 @@ class _SellerHomeTabState extends State<SellerHomeTab> {
       if (dashboard != null) return dashboard;
       final application =
           await applications.getLatestForUser(auth.user?.id ?? '');
-      if (application?['status'] == 'approved') {
+      if (application?.status == 'approved') {
         return repository.ensureApprovedPartnerDashboard();
       }
       return null;
