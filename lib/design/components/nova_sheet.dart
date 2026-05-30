@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../tokens/app_spacing.dart';
 import '../tokens/nova_colors.dart';
 
-/// Shows a styled modal bottom sheet with the NovAiShop look: rounded top
+/// Shows a styled modal bottom sheet with the NovaShop look: rounded top
 /// corners, a grab handle, and an optional title.
 ///
 /// Returns the value the sheet was popped with.

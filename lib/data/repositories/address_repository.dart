@@ -1,112 +1,151 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/address.dart';
+import 'repository_error.dart';
 
-/// Local address book backed by `shared_preferences`. There is no addresses
-/// API — delivery addresses live only on the device.
-///
-/// Not token-dependent; register it as a plain `Provider`.
 class AddressRepository {
-  AddressRepository({SharedPreferences? prefs}) : _prefs = prefs;
+  AddressRepository();
 
-  static const _storeKey = 'novaishop.addresses';
-
-  SharedPreferences? _prefs;
-
-  Future<SharedPreferences> get _store async =>
-      _prefs ??= await SharedPreferences.getInstance();
-
-  /// All saved addresses, with the default address first.
   Future<List<Address>> getAddresses() async {
-    final store = await _store;
-    final raw = store.getString(_storeKey);
-    if (raw == null || raw.isEmpty) return const [];
+    _requireUser();
     try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      final addresses = decoded
+      final rows = await Supabase.instance.client
+          .from('addresses')
+          .select()
+          .eq('user_id', _userId)
+          .order('is_default', ascending: false)
+          .order('created_at', ascending: false);
+      return rows
           .whereType<Map>()
-          .map((item) => Address.fromJson(Map<String, dynamic>.from(item)))
+          .map((row) => _fromRow(Map<String, dynamic>.from(row)))
           .toList();
-      addresses.sort((a, b) {
-        if (a.isDefault == b.isDefault) return 0;
-        return a.isDefault ? -1 : 1;
-      });
-      return addresses;
-    } catch (_) {
-      return const [];
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
   }
 
-  /// Adds [address]. When it is the first one, it becomes the default.
   Future<List<Address>> addAddress(Address address) async {
-    final current = await getAddresses();
-    final isFirst = current.isEmpty;
-    final toAdd = address.copyWith(isDefault: address.isDefault || isFirst);
-    final next = [...current, toAdd];
-    return _persistEnsuringSingleDefault(next, toAdd.id);
-  }
-
-  /// Updates an existing address by id.
-  Future<List<Address>> updateAddress(Address address) async {
-    final current = await getAddresses();
-    final next =
-        current.map((item) => item.id == address.id ? address : item).toList();
-    return _persistEnsuringSingleDefault(
-      next,
-      address.isDefault ? address.id : null,
-    );
-  }
-
-  /// Removes an address by id. If it was the default, the first remaining
-  /// address becomes the new default.
-  Future<List<Address>> removeAddress(String id) async {
-    final current = await getAddresses();
-    final next = current.where((item) => item.id != id).toList();
-    if (next.isNotEmpty && !next.any((item) => item.isDefault)) {
-      next[0] = next[0].copyWith(isDefault: true);
+    _requireUser();
+    try {
+      final current = await getAddresses();
+      final addressToSave =
+          current.isEmpty ? address.copyWith(isDefault: true) : address;
+      if (addressToSave.isDefault) {
+        await _clearDefault();
+      }
+      await Supabase.instance.client
+          .from('addresses')
+          .insert(_toRow(addressToSave));
+      return getAddresses();
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
     }
-    await _save(next);
-    return getAddresses();
   }
 
-  /// Marks the address with [id] as the default.
+  Future<List<Address>> updateAddress(Address address) async {
+    _requireUser();
+    try {
+      if (address.isDefault) {
+        await _clearDefault();
+      }
+      await Supabase.instance.client
+          .from('addresses')
+          .update(_toRow(address, includeUserId: false))
+          .eq('id', address.id)
+          .eq('user_id', _userId);
+      return getAddresses();
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
+  }
+
+  Future<List<Address>> removeAddress(String id) async {
+    _requireUser();
+    try {
+      await Supabase.instance.client
+          .from('addresses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', _userId);
+      final remaining = await getAddresses();
+      if (remaining.isNotEmpty && !remaining.any((item) => item.isDefault)) {
+        return setDefault(remaining.first.id);
+      }
+      return remaining;
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
+  }
+
   Future<List<Address>> setDefault(String id) async {
-    final current = await getAddresses();
-    return _persistEnsuringSingleDefault(current, id);
+    _requireUser();
+    try {
+      await _clearDefault();
+      await Supabase.instance.client
+          .from('addresses')
+          .update({'is_default': true})
+          .eq('id', id)
+          .eq('user_id', _userId);
+      return getAddresses();
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
   }
 
-  /// The current default address, or `null` when the book is empty.
   Future<Address?> getDefault() async {
     final addresses = await getAddresses();
-    if (addresses.isEmpty) return null;
-    return addresses.firstWhere(
-      (item) => item.isDefault,
-      orElse: () => addresses.first,
-    );
-  }
-
-  Future<List<Address>> _persistEnsuringSingleDefault(
-    List<Address> addresses,
-    String? defaultId,
-  ) async {
-    final next = addresses
-        .map((item) => item.copyWith(isDefault: item.id == defaultId))
-        .toList();
-    if (defaultId == null && next.isNotEmpty && !next.any((a) => a.isDefault)) {
-      next[0] = next[0].copyWith(isDefault: true);
+    for (final address in addresses) {
+      if (address.isDefault) return address;
     }
-    await _save(next);
-    return getAddresses();
+    return addresses.isEmpty ? null : addresses.first;
   }
 
-  Future<void> _save(List<Address> addresses) async {
-    final store = await _store;
-    await store.setString(
-      _storeKey,
-      jsonEncode([for (final a in addresses) a.toJson()]),
-    );
+  Future<void> _clearDefault() {
+    return Supabase.instance.client
+        .from('addresses')
+        .update({'is_default': false})
+        .eq('user_id', _userId)
+        .eq('is_default', true);
+  }
+
+  Map<String, dynamic> _toRow(Address address, {bool includeUserId = true}) {
+    return {
+      'id': address.id,
+      if (includeUserId) 'user_id': _userId,
+      'label': address.label,
+      'line': address.line,
+      'city': address.city,
+      'country': address.country,
+      'phone': address.phone,
+      'is_default': address.isDefault,
+      'map_image_url': address.mapImageUrl,
+    };
+  }
+
+  Address _fromRow(Map<String, dynamic> row) {
+    return Address.fromJson({
+      'id': row['id'],
+      'label': row['label'],
+      'line': row['line'],
+      'city': row['city'],
+      'country': row['country'],
+      'phone': row['phone'],
+      'isDefault': row['is_default'],
+      'mapImageUrl': row['map_image_url'],
+    });
+  }
+
+  void _requireUser() {
+    if (Supabase.instance.client.auth.currentUser == null) {
+      throw RepositoryException('Reconnectez-vous pour gerer vos adresses.');
+    }
+  }
+
+  String get _userId {
+    final id = Supabase.instance.client.auth.currentUser?.id;
+    if (id == null || id.isEmpty) {
+      throw RepositoryException('Session introuvable. Reconnectez-vous.');
+    }
+    return id;
   }
 }

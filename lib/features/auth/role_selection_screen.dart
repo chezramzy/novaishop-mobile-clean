@@ -40,7 +40,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
               0,
             ),
             child: AuthIntro(
-              title: 'Comment utiliserez-vous NovAiShop ?',
+              title: 'Comment utiliserez-vous NovaShop ?',
               subtitle:
                   'Choisissez le profil qui vous correspond. Vous pourrez '
                   'en demander un autre plus tard depuis votre compte.',

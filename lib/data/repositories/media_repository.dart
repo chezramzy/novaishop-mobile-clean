@@ -14,11 +14,11 @@ class MediaRepository {
     required String? accessToken,
     http.Client? httpClient,
   })  : _httpClient = httpClient ?? http.Client(),
-        _accessToken = accessToken,
-        _hasToken = accessToken != null && accessToken.isNotEmpty;
+        _hasToken = accessToken != null &&
+            accessToken.isNotEmpty &&
+            !accessToken.startsWith('local:');
 
   final http.Client _httpClient;
-  final String? _accessToken;
   final bool _hasToken;
 
   void _requireToken() {
@@ -171,7 +171,8 @@ class MediaRepository {
   }
 
   String _resolveBucket(String bucket) {
-    if (bucket.isEmpty || bucket == 'public-media' || bucket == 'private-kyc') {
+    if (bucket == 'private-kyc') return 'private-kyc';
+    if (bucket.isEmpty || bucket == 'public-media') {
       return SupabaseConfig.mediaBucket;
     }
     return bucket;
@@ -182,8 +183,6 @@ class MediaRepository {
     if (supabaseUserId != null && supabaseUserId.isNotEmpty) {
       return supabaseUserId;
     }
-    final token = _accessToken ?? '';
-    if (token.startsWith('local:')) return token.substring('local:'.length);
     throw RepositoryException('Reconnectez-vous pour envoyer un fichier.');
   }
 
@@ -217,7 +216,9 @@ class MediaRepository {
       contentType: contentType,
       kind: kind,
       status: status,
-      publicUrl: _bucket(bucket).getPublicUrl(objectKey),
+      publicUrl: bucket == 'private-kyc'
+          ? null
+          : _bucket(bucket).getPublicUrl(objectKey),
       thumbnails: const [],
       createdAt: now.toIso8601String(),
     );

@@ -11,16 +11,16 @@ import 'auth_gate.dart';
 import 'router/app_router.dart';
 import 'router/route_names.dart';
 
-class NovAiShopApp extends StatefulWidget {
-  const NovAiShopApp({this.authStateChanges, super.key});
+class NovaShopApp extends StatefulWidget {
+  const NovaShopApp({this.authStateChanges, super.key});
 
   final Stream<AuthState>? authStateChanges;
 
   @override
-  State<NovAiShopApp> createState() => _NovAiShopAppState();
+  State<NovaShopApp> createState() => _NovaShopAppState();
 }
 
-class _NovAiShopAppState extends State<NovAiShopApp> {
+class _NovaShopAppState extends State<NovaShopApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   StreamSubscription<AuthState>? _authSubscription;
 
@@ -49,7 +49,7 @@ class _NovAiShopAppState extends State<NovAiShopApp> {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'NovAiShop',
+      title: 'NovaShop',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

@@ -107,7 +107,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
             const SizedBox(height: 8),
             Text(
               'Renseignez vos informations pour commencer à livrer les '
-              'commandes NovAiShop et générer des revenus.',
+              'commandes NovaShop et générer des revenus.',
               textAlign: TextAlign.center,
               style: AppTypography.bodyMuted,
             ).fadeSlideIn(delay: AppMotion.fast),
@@ -185,7 +185,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
             const SizedBox(height: 12),
             Text(
               'En continuant, vous acceptez les conditions du programme '
-              'de livraison NovAiShop.',
+              'de livraison NovaShop.',
               textAlign: TextAlign.center,
               style: AppTypography.caption,
             ),

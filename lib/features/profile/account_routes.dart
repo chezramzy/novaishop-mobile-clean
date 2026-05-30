@@ -1,7 +1,13 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../../app/router/app_router.dart';
 import '../../app/router/route_names.dart';
 import '../../data/models/auth_user.dart';
+import '../../design/feedback/nova_empty_state.dart';
+import '../../design/components/soft_gradient_scaffold.dart';
 import '../admin/admin_screen.dart';
+import '../auth/auth_controller.dart';
 import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 import '../support/contact_screen.dart';
@@ -28,5 +34,24 @@ final FeatureRoutes accountRoutes = FeatureRoutes(<String, RouteArgsBuilder>{
       ),
   RouteNames.contact: (_) => const ContactScreen(),
   RouteNames.partnerApplication: (_) => const PartnerApplicationScreen(),
-  RouteNames.admin: (_) => const AdminScreen(),
+  RouteNames.admin: (_) => const _AdminRouteGuard(),
 });
+
+class _AdminRouteGuard extends StatelessWidget {
+  const _AdminRouteGuard();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthController>().user;
+    if (user?.role.isAdmin == true) return const AdminScreen();
+    return SoftGradientScaffold(
+      child: NovaEmptyState(
+        icon: Icons.admin_panel_settings_outlined,
+        title: 'Acces admin indisponible',
+        message: 'Connectez-vous avec un compte administrateur NovaShop.',
+        actionLabel: 'Retour',
+        onAction: () => Navigator.of(context).maybePop(),
+      ),
+    );
+  }
+}

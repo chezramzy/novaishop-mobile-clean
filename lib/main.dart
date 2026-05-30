@@ -129,7 +129,7 @@ class _Bootstrap extends StatelessWidget {
               MediaRepository(accessToken: auth.accessToken),
         ),
       ],
-      child: const NovAiShopApp(),
+      child: const NovaShopApp(),
     );
   }
 }

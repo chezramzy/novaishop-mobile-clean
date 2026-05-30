@@ -32,9 +32,9 @@ const _suggestions = [
     'Quelle est la procédure pour retourner un article ?',
   ),
   _Suggestion(
-    'Devenir vendeur',
-    Icons.storefront_outlined,
-    'Comment devenir vendeur sur NovAiShop ?',
+    'Devenir partenaire',
+    Icons.inventory_2_outlined,
+    'Comment proposer mes produits sur NovaShop ?',
   ),
   _Suggestion(
     'Moyens de paiement',
@@ -49,11 +49,11 @@ const _suggestions = [
   _Suggestion(
     'Sécurité du compte',
     Icons.shield_outlined,
-    'Comment sécuriser mon compte NovAiShop ?',
+    'Comment sécuriser mon compte NovaShop ?',
   ),
 ];
 
-/// The NovAiShop AI assistant chat. A polished conversation UI with
+/// The NovaShop AI assistant chat. A polished conversation UI with
 /// animated message bubbles, a typing indicator and quick suggestions.
 class AssistantTab extends StatefulWidget {
   const AssistantTab({super.key});
@@ -63,7 +63,7 @@ class AssistantTab extends StatefulWidget {
 }
 
 class _AssistantTabState extends State<AssistantTab> {
-  static const _storageKey = 'novaishop.assistant.conversation';
+  static const _storageKey = 'NovaShop.assistant.conversation';
 
   final _input = TextEditingController();
   final _scrollController = ScrollController();
@@ -299,7 +299,7 @@ class _WelcomeView extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'Posez votre question sur vos commandes, les retours, la vente '
-          'ou le paiement. L\'assistant NovAiShop vous répond instantanément.',
+          'ou le paiement. L\'assistant NovaShop vous répond instantanément.',
           textAlign: TextAlign.center,
           style: AppTypography.bodyMuted,
         ).fadeSlideIn(delay: AppMotion.fast),

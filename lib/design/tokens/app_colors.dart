@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// The NovAiShop colour palette. Single source of truth — do not redeclare
+/// The NovaShop colour palette. Single source of truth — do not redeclare
 /// colours in feature code.
 class AppColors {
   const AppColors._();

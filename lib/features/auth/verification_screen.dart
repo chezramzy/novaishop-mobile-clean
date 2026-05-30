@@ -145,7 +145,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             ).fadeSlideIn(delay: const Duration(milliseconds: 80)),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Votre compte NovAiShop est vérifié. Bienvenue sur '
+              'Votre compte NovaShop est vérifié. Bienvenue sur '
               'la marketplace.',
               textAlign: TextAlign.center,
               style: AppTypography.bodyMuted,

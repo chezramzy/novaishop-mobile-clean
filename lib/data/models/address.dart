@@ -1,7 +1,6 @@
 import 'json_utils.dart';
 
-/// A delivery address stored locally on the device (there is no addresses
-/// API). Persisted as JSON via `shared_preferences`.
+/// A delivery address stored in Supabase.
 class Address {
   const Address({
     required this.id,

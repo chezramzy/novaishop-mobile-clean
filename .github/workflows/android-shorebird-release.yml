@@ -18,6 +18,11 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
       SHOREBIRD_APP_ID: ${{ vars.SHOREBIRD_APP_ID }}
+      FLUTTER_VERSION: "3.41.6"
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -34,9 +39,32 @@ jobs:
             echo "Missing repository variable SHOREBIRD_APP_ID";
             exit 1;
           }
+          test -n "$ANDROID_KEYSTORE_BASE64" || {
+            echo "Missing repository secret ANDROID_KEYSTORE_BASE64";
+            exit 1;
+          }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || {
+            echo "Missing repository secret ANDROID_KEYSTORE_PASSWORD";
+            exit 1;
+          }
+          test -n "$ANDROID_KEY_ALIAS" || {
+            echo "Missing repository secret ANDROID_KEY_ALIAS";
+            exit 1;
+          }
+          test -n "$ANDROID_KEY_PASSWORD" || {
+            echo "Missing repository secret ANDROID_KEY_PASSWORD";
+            exit 1;
+          }
           cat > shorebird.yaml <<EOF
           app_id: $SHOREBIRD_APP_ID
           auto_update: true
+          EOF
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
       - name: Setup Java
@@ -64,7 +92,7 @@ jobs:
         uses: shorebirdtech/shorebird-release@v1
         with:
           args: --artifact apk
-          flutter-version: latest
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           platform: android
           working-directory: .
 

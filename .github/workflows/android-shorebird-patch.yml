@@ -19,6 +19,7 @@ jobs:
     env:
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
       SHOREBIRD_APP_ID: ${{ vars.SHOREBIRD_APP_ID }}
+      FLUTTER_VERSION: "3.41.6"
 
     steps:
       - name: Checkout
@@ -64,6 +65,7 @@ jobs:
         id: shorebird-patch
         uses: shorebirdtech/shorebird-patch@v1
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           platform: android
           release-version: ${{ inputs.release_version }}
           working-directory: .

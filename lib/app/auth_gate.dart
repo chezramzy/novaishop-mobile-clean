@@ -49,7 +49,7 @@ class _SplashView extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              'NovAiShop',
+              'NovaShop',
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall

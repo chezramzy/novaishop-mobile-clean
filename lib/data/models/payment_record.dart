@@ -18,7 +18,7 @@ class PaymentRecord {
   final String id;
   final String orderId;
 
-  /// One of: `stripe-connect`, `fedapay`, `mock`.
+  /// One of the configured payment providers.
   final String provider;
 
   /// One of: `requires_payment_method`, `requires_confirmation`,
@@ -39,7 +39,7 @@ class PaymentRecord {
     return PaymentRecord(
       id: Json.str(json['id']),
       orderId: Json.str(json['orderId']),
-      provider: Json.str(json['provider'], 'mock'),
+      provider: Json.str(json['provider'], 'unconfigured'),
       status: Json.str(json['status'], 'requires_confirmation'),
       amount: Json.dbl(json['amount']),
       currency: Json.str(json['currency'], 'XOF'),

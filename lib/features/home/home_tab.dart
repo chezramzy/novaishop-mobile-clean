@@ -16,8 +16,8 @@ import '../catalog/category_listings_screen.dart';
 import '../categories/categories_screen.dart';
 
 /// The buyer's enriched "Accueil" feed: greeting, search, category rail,
-/// flash sales with live countdown, best-sellers, new arrivals, featured
-/// sellers and a marketplace stats band.
+/// flash sales with live countdown, best-sellers, new arrivals and a
+/// marketplace stats band.
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
@@ -50,13 +50,9 @@ class _HomeTabState extends State<HomeTab> {
 
       // Optional feeds — degrade gracefully if any fails.
       List<Listing> flashSales = const [];
-      List<FeaturedSeller> sellers = const [];
       CatalogStats? stats;
       try {
         flashSales = (await repository.getFlashSales()).items;
-      } catch (_) {/* optional */}
-      try {
-        sellers = await repository.getFeaturedSellers();
       } catch (_) {/* optional */}
       try {
         stats = await repository.getStats();
@@ -69,7 +65,6 @@ class _HomeTabState extends State<HomeTab> {
           bestSellers: bestSellers.items,
           newArrivals: newArrivals.items,
           flashSales: flashSales,
-          sellers: sellers,
           stats: stats,
         );
         _loading = false;
@@ -171,12 +166,6 @@ class _HomeTabState extends State<HomeTab> {
               onTap: _openProduct,
               onAdd: _addToCart,
             ),
-            const SizedBox(height: 22),
-          ],
-          if (_data.sellers.isNotEmpty) ...[
-            const SectionHeader(title: 'Boutiques en vedette'),
-            const SizedBox(height: 4),
-            _FeaturedSellersRow(sellers: _data.sellers),
             const SizedBox(height: 22),
           ],
           if (_data.stats != null)
@@ -788,109 +777,6 @@ class _UniverseShortcuts extends StatelessWidget {
   }
 }
 
-/* ---------------------------- featured sellers --------------------------- */
-
-class _FeaturedSellersRow extends StatelessWidget {
-  const _FeaturedSellersRow({required this.sellers});
-
-  final List<FeaturedSeller> sellers;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 132,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: sellers.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final seller = sellers[index];
-          return StaggeredEntrance.item(
-            index,
-            _SellerCard(seller: seller),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SellerCard extends StatelessWidget {
-  const _SellerCard({required this.seller});
-
-  final FeaturedSeller seller;
-
-  @override
-  Widget build(BuildContext context) {
-    final shop = seller.shop;
-    final initial =
-        shop.name.trim().isNotEmpty ? shop.name.trim()[0].toUpperCase() : 'B';
-    return SizedBox(
-      width: 158,
-      child: NovaCard(
-        onTap: shop.slug.isEmpty
-            ? null
-            : () => Navigator.pushNamed(
-                  context,
-                  RouteNames.shopPage,
-                  arguments: shop.slug,
-                ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 42,
-                  width: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.lime,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                const Icon(
-                  Icons.verified_rounded,
-                  color: AppColors.info,
-                  size: 18,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              shop.name.isEmpty ? 'Boutique' : shop.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              '${seller.listingCount} annonce${seller.listingCount > 1 ? 's' : ''}',
-              style: const TextStyle(
-                color: AppColors.muted,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /* ------------------------------ stats band ------------------------------- */
 
 class _StatsBand extends StatelessWidget {
@@ -909,7 +795,7 @@ class _StatsBand extends StatelessWidget {
       child: Column(
         children: [
           const Text(
-            'NovAiShop en chiffres',
+            'NovaShop en chiffres',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
@@ -1060,7 +946,6 @@ class _HomeData {
     this.bestSellers = const [],
     this.newArrivals = const [],
     this.flashSales = const [],
-    this.sellers = const [],
     this.stats,
   });
 
@@ -1068,6 +953,5 @@ class _HomeData {
   final List<Listing> bestSellers;
   final List<Listing> newArrivals;
   final List<Listing> flashSales;
-  final List<FeaturedSeller> sellers;
   final CatalogStats? stats;
 }

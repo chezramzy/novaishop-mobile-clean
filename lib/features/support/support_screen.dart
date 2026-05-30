@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/router/route_names.dart';
+import '../../data/repositories/update_repository.dart';
 import '../../design/design_system.dart';
 import 'support_content.dart';
 
@@ -115,7 +116,7 @@ class SupportScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           const Center(
             child: Text(
-              'NovAiShop · version 1.0.0',
+              'NovaShop · version $appReleaseVersionLabel',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),
@@ -123,7 +124,6 @@ class SupportScreen extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// Le document légal demandé par l'écran [LegalScreen].

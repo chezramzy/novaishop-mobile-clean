@@ -113,7 +113,8 @@ class _SearchScreenState extends State<SearchScreen> {
           await context.read<CatalogRepository>().getSearchSuggestions(query);
       if (!mounted || _controller.text.trim() != query) return;
       setState(() {
-        _suggestions = suggestions;
+        _suggestions =
+            suggestions.where((suggestion) => !suggestion.isVendor).toList();
         _showSuggestions = _focusNode.hasFocus;
       });
     } catch (_) {
@@ -302,7 +303,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (!_searched) {
       return const NovaEmptyState(
         icon: Icons.search_rounded,
-        title: 'Trouvez tout sur NovAiShop',
+        title: 'Trouvez tout sur NovaShop',
         message: 'Saisissez un mot-clé ou ajustez les filtres pour démarrer.',
       );
     }
@@ -407,7 +408,6 @@ class _SuggestionList extends StatelessWidget {
 
   IconData _iconFor(SearchSuggestion suggestion) {
     if (suggestion.isCategory) return Icons.category_outlined;
-    if (suggestion.isVendor) return Icons.storefront_outlined;
     return Icons.search_rounded;
   }
 

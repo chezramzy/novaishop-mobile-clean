@@ -45,6 +45,6 @@ class AppStrings {
   static const pullToRefresh = 'Tirez pour actualiser';
 
   // App identity.
-  static const appName = 'NovAiShop';
+  static const appName = 'NovaShop';
   static const appTagline = 'Le catalogue NovaShop unifie';
 }

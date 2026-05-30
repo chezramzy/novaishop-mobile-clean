@@ -87,6 +87,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Category? _subCategory;
   ProductTemplate _template = ProductTemplate.standard;
   String _imageUrl = '';
+  final List<String> _imageUrls = [];
   Uint8List? _pickedBytes;
   bool _busy = false;
   bool _uploading = false;
@@ -105,6 +106,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _price.text = listing.price.toStringAsFixed(2).replaceAll('.', ',');
       _inventory.text = '${listing.inventory}';
       _imageUrl = listing.imageUrl ?? '';
+      if (_imageUrl.isNotEmpty) _imageUrls.add(_imageUrl);
       _hydrateAttributes(listing.attributes);
     } else if (suggestion != null) {
       _title.text = suggestion.suggestedTitle;
@@ -113,8 +115,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         suggestion.extractedAttributes,
       );
       _imageUrl = widget.prefillImageUrl ?? '';
+      if (_imageUrl.isNotEmpty) _imageUrls.add(_imageUrl);
     } else {
       _imageUrl = widget.prefillImageUrl ?? '';
+      if (_imageUrl.isNotEmpty) _imageUrls.add(_imageUrl);
     }
   }
 
@@ -262,6 +266,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   ProductTemplate _templateFor(Category? category) {
+    final configured = category?.formTemplate.trim();
+    if (configured != null && configured.isNotEmpty) {
+      for (final template in ProductTemplate.values) {
+        if (template.id == configured) return template;
+      }
+    }
     if (_isLaptopCategory(category)) return ProductTemplate.laptop;
     if (_isBagCategory(category)) return ProductTemplate.bag;
     if (_isFashionCategory(category)) return ProductTemplate.fashion;
@@ -321,6 +331,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
     attributes.removeWhere(
       (_, value) => value is String && value.trim().isEmpty,
     );
+    final variantOptions = <String, String>{
+      if (_size.text.trim().isNotEmpty) 'Taille': _size.text.trim(),
+      if (_color.text.trim().isNotEmpty) 'Couleur': _color.text.trim(),
+    };
+    if (variantOptions.isNotEmpty) {
+      attributes['variants'] = [
+        {
+          'options': variantOptions,
+          'inventory': int.tryParse(_inventory.text.trim()) ?? 0,
+          'price': _parsePrice(_price.text),
+          if (_imageUrl.isNotEmpty) 'imageUrl': _imageUrl,
+        }
+      ];
+    }
+    if (_imageUrls.isNotEmpty) {
+      attributes['listingImages'] = [
+        for (var index = 0; index < _imageUrls.length; index++)
+          {
+            'url': _imageUrls[index],
+            'isPrimary': index == 0,
+            'sortOrder': index,
+          }
+      ];
+    }
     return attributes;
   }
 
@@ -353,7 +387,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         return;
       }
       setState(() {
-        _imageUrl = url;
+        if (!_imageUrls.contains(url)) _imageUrls.add(url);
+        _imageUrl = _imageUrls.first;
         _uploading = false;
       });
       showSellerSnack(context, 'Photo ajoutée.');
@@ -374,9 +409,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  void _removeImage() {
+  void _removeImage([String? url]) {
     setState(() {
-      _imageUrl = '';
+      if (url == null) {
+        _imageUrls.clear();
+      } else {
+        _imageUrls.remove(url);
+      }
+      _imageUrl = _imageUrls.isEmpty ? '' : _imageUrls.first;
       _pickedBytes = null;
     });
   }
@@ -385,6 +425,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (_busy || _uploading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final selectedCategory = _subCategory ?? _category;
+    final categories = await _categoriesFuture;
+    if (!mounted) return;
+    final hasRequiredSubCategory = _category != null &&
+        categories.any((category) => category.parentId == _category!.id);
+    if (hasRequiredSubCategory && _subCategory == null && !_isEdit) {
+      showSellerSnack(context, 'Choisissez une sous-categorie.', error: true);
+      return;
+    }
     if (selectedCategory == null && !_isEdit) {
       showSellerSnack(context, 'Choisissez une catégorie.', error: true);
       return;
@@ -548,10 +596,51 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ),
           const SizedBox(height: AppSpacing.xs),
           NovaButton.secondary(
-            label: _imageUrl.isEmpty ? 'Choisir une photo' : 'Changer la photo',
+            label:
+                _imageUrl.isEmpty ? 'Choisir une photo' : 'Ajouter une photo',
             icon: Icons.add_photo_alternate_outlined,
             onPressed: _uploading ? () {} : _pickImage,
           ),
+          if (_imageUrls.length > 1) ...[
+            const SizedBox(height: AppSpacing.xs),
+            SizedBox(
+              height: 76,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _imageUrls.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpacing.xs),
+                itemBuilder: (context, index) {
+                  final url = _imageUrls[index];
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
+                        child: Image.network(
+                          url,
+                          width: 76,
+                          height: 76,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: CircleIconButton(
+                          icon: Icons.close_rounded,
+                          size: 28,
+                          backgroundColor: Colors.white,
+                          tooltip: 'Retirer la photo',
+                          onPressed: () => _removeImage(url),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           NovaTextField(
             controller: _title,
@@ -863,7 +952,7 @@ class _LaptopSpecsForm extends StatelessWidget {
         NovaTextField(
           controller: warranty,
           label: 'Garantie',
-          hint: '6 mois boutique, garantie constructeur',
+          hint: '6 mois NovaShop, garantie constructeur',
           icon: Icons.workspace_premium_outlined,
           textInputAction: TextInputAction.next,
         ),

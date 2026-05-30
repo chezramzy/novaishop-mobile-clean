@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../app/router/route_names.dart';
 import '../../data/models/auth_user.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/repositories/update_repository.dart';
 import '../../design/design_system.dart';
 import '../auth/auth_controller.dart';
 
@@ -191,7 +192,7 @@ class _ProfileTabState extends State<ProfileTab> {
           const SizedBox(height: AppSpacing.md),
           const Center(
             child: Text(
-              'NovAiShop · version 1.0.0',
+              'NovaShop · version $appReleaseVersionLabel',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),
@@ -282,7 +283,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                     Flexible(
                       child: Text(
                         user.fullName.isEmpty
-                            ? 'Utilisateur NovAiShop'
+                            ? 'Utilisateur NovaShop'
                             : user.fullName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

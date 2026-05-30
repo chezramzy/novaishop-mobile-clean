@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/supabase/supabase_config.dart';
 import '../models/partner_application.dart';
 import 'repository_error.dart';
 
@@ -109,9 +108,7 @@ class PartnerApplicationRepository {
     }
     final objectKey =
         'uploads/$userId/partner_applications/${DateTime.now().toUtc().microsecondsSinceEpoch}-$index-${_safeFileName(image.fileName)}';
-    await Supabase.instance.client.storage
-        .from(SupabaseConfig.mediaBucket)
-        .uploadBinary(
+    await Supabase.instance.client.storage.from('private-kyc').uploadBinary(
           objectKey,
           bytes,
           fileOptions: FileOptions(
@@ -122,10 +119,8 @@ class PartnerApplicationRepository {
     return {
       'fileName': image.fileName,
       'contentType': image.contentType,
+      'bucket': 'private-kyc',
       'objectKey': objectKey,
-      'publicUrl': Supabase.instance.client.storage
-          .from(SupabaseConfig.mediaBucket)
-          .getPublicUrl(objectKey),
     };
   }
 

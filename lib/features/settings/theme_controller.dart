@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Contrôle le mode d'affichage (Clair / Sombre / Système) de NovAiShop.
+/// Contrôle le mode d'affichage (Clair / Sombre / Système) de NovaShop.
 ///
 /// La préférence est persistée via `shared_preferences` sous une clé
 /// réservée et restaurée au démarrage de l'application.
 class ThemeController extends ChangeNotifier {
   /// Clé de stockage de la préférence de thème.
-  static const _storageKey = 'novaishop.settings.themeMode';
+  static const _storageKey = 'NovaShop.settings.themeMode';
 
   ThemeMode _mode = ThemeMode.system;
 

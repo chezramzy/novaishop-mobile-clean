@@ -7,7 +7,6 @@ import '../../design/design_system.dart';
 import '../auth/auth_controller.dart';
 import 'review_widgets.dart';
 
-/// Arguments passed to the write-review route.
 class WriteReviewArgs {
   const WriteReviewArgs({
     required this.targetId,
@@ -15,17 +14,13 @@ class WriteReviewArgs {
     this.isVendor = false,
   });
 
-  /// The listing id, or the vendor id when [isVendor] is true.
   final String targetId;
-
-  /// The product or shop name shown in the header.
   final String targetName;
 
-  /// When true the review targets a vendor; otherwise a listing.
+  /// Legacy compatibility flag. Partner reviews are blocked publicly.
   final bool isVendor;
 }
 
-/// A full-screen form to publish a review for a listing or a vendor.
 class WriteReviewScreen extends StatefulWidget {
   const WriteReviewScreen({required this.args, super.key});
 
@@ -53,8 +48,12 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
       _toast('Connectez-vous pour publier un avis.');
       return;
     }
+    if (widget.args.isVendor) {
+      _toast('Les avis partenaires ne sont pas exposes dans NovaShop.');
+      return;
+    }
     if (_rating == 0) {
-      _toast('Sélectionnez une note avant de publier.');
+      _toast('Selectionnez une note avant de publier.');
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -62,21 +61,13 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     setState(() => _submitting = true);
     final repository = ReviewRepository(accessToken: auth.accessToken);
     try {
-      if (widget.args.isVendor) {
-        await repository.createVendorReview(
-          vendorId: widget.args.targetId,
-          rating: _rating,
-          comment: _commentController.text,
-        );
-      } else {
-        await repository.createListingReview(
-          listingId: widget.args.targetId,
-          rating: _rating,
-          comment: _commentController.text,
-        );
-      }
+      await repository.createListingReview(
+        listingId: widget.args.targetId,
+        rating: _rating,
+        comment: _commentController.text,
+      );
       if (!mounted) return;
-      _toast('Merci ! Votre avis a été publié.');
+      _toast('Merci ! Votre avis a ete publie.');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
@@ -114,9 +105,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               child: Column(
                 children: [
                   Text(
-                    widget.args.isVendor
-                        ? 'Comment évaluez-vous cette boutique ?'
-                        : 'Comment évaluez-vous ce produit ?',
+                    'Comment evaluez-vous ce produit ?',
                     textAlign: TextAlign.center,
                     style: AppTypography.subtitle,
                   ),
@@ -151,7 +140,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             NovaTextField(
               controller: _commentController,
               label: 'Votre commentaire',
-              hint: 'Partagez votre expérience en quelques mots…',
+              hint: 'Partagez votre experience en quelques mots...',
               maxLines: 5,
               minLines: 4,
               maxLength: 2000,
@@ -159,7 +148,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               validator: (value) {
                 final text = value?.trim() ?? '';
                 if (text.length < 3) {
-                  return 'Écrivez au moins 3 caractères.';
+                  return 'Ecrivez au moins 3 caracteres.';
                 }
                 return null;
               },
@@ -178,7 +167,6 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 }
 
-/// Opens the write-review screen as a modal sheet and returns true on success.
 Future<bool> openWriteReviewSheet(
   BuildContext context, {
   required String targetId,
@@ -198,7 +186,6 @@ Future<bool> openWriteReviewSheet(
   return result ?? false;
 }
 
-/// The sheet-friendly body reusing the form logic of [WriteReviewScreen].
 class _WriteReviewSheetBody extends StatefulWidget {
   const _WriteReviewSheetBody({required this.args});
 
@@ -226,12 +213,19 @@ class _WriteReviewSheetBodyState extends State<_WriteReviewSheetBody> {
       setState(() => _error = 'Connectez-vous pour publier un avis.');
       return;
     }
+    if (widget.args.isVendor) {
+      setState(
+        () =>
+            _error = 'Les avis partenaires ne sont pas exposes dans NovaShop.',
+      );
+      return;
+    }
     if (_rating == 0) {
-      setState(() => _error = 'Sélectionnez une note.');
+      setState(() => _error = 'Selectionnez une note.');
       return;
     }
     if (_commentController.text.trim().length < 3) {
-      setState(() => _error = 'Écrivez au moins 3 caractères.');
+      setState(() => _error = 'Ecrivez au moins 3 caracteres.');
       return;
     }
 
@@ -241,19 +235,11 @@ class _WriteReviewSheetBodyState extends State<_WriteReviewSheetBody> {
     });
     final repository = ReviewRepository(accessToken: auth.accessToken);
     try {
-      if (widget.args.isVendor) {
-        await repository.createVendorReview(
-          vendorId: widget.args.targetId,
-          rating: _rating,
-          comment: _commentController.text,
-        );
-      } else {
-        await repository.createListingReview(
-          listingId: widget.args.targetId,
-          rating: _rating,
-          comment: _commentController.text,
-        );
-      }
+      await repository.createListingReview(
+        listingId: widget.args.targetId,
+        rating: _rating,
+        comment: _commentController.text,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {
@@ -299,7 +285,7 @@ class _WriteReviewSheetBodyState extends State<_WriteReviewSheetBody> {
         NovaTextField(
           controller: _commentController,
           label: 'Votre commentaire',
-          hint: 'Partagez votre expérience…',
+          hint: 'Partagez votre experience...',
           maxLines: 4,
           minLines: 3,
           maxLength: 2000,

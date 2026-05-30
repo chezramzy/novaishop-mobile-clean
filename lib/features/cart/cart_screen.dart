@@ -82,8 +82,7 @@ class _CartBottomBar extends StatelessWidget {
   final CartController cart;
 
   Future<void> _startConversation(BuildContext context) async {
-    final user = context.read<AuthController>().user;
-    if (user == null) {
+    if (context.read<AuthController>().user == null) {
       Navigator.of(context).pushNamed(RouteNames.signIn);
       return;
     }
@@ -91,21 +90,19 @@ class _CartBottomBar extends StatelessWidget {
     try {
       final conversation =
           await context.read<MessageRepository>().startOrderConversation(
-                customerId: user.id,
-                total: cart.total,
-                items: [
-                  for (final item in cart.items)
-                    ConversationOrderItem(
-                      listingId: item.listing.id,
-                      title: item.listing.title,
-                      quantity: item.quantity,
-                      unitPrice: item.unitPrice,
-                      totalPrice: item.total,
-                      variantId: item.variant?.id,
-                      options: item.selectedOptions,
-                    ),
-                ],
-              );
+        items: [
+          for (final item in cart.items)
+            ConversationOrderItem(
+              listingId: item.listing.id,
+              title: item.listing.title,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.total,
+              variantId: item.variant?.id,
+              options: item.selectedOptions,
+            ),
+        ],
+      );
       if (!context.mounted) return;
       cart.clear();
       Navigator.of(context).pushNamed(

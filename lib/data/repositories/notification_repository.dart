@@ -60,6 +60,7 @@ class NotificationRepository {
       final rows = await Supabase.instance.client
           .from('notifications')
           .select()
+          .eq('user_id', _userId)
           .order('created_at', ascending: false)
           .range(from, to);
       final items = rows
@@ -87,6 +88,7 @@ class NotificationRepository {
       final rows = await Supabase.instance.client
           .from('notifications')
           .select('id')
+          .eq('user_id', _userId)
           .eq('read', false);
       return rows.length;
     } catch (error) {
@@ -101,6 +103,7 @@ class NotificationRepository {
           .from('notifications')
           .update({'read': true})
           .eq('id', notificationId)
+          .eq('user_id', _userId)
           .select()
           .limit(1);
       return AppNotification.fromJson(
@@ -116,9 +119,19 @@ class NotificationRepository {
     try {
       await Supabase.instance.client
           .from('notifications')
-          .update({'read': true}).eq('read', false);
+          .update({'read': true})
+          .eq('user_id', _userId)
+          .eq('read', false);
     } catch (error) {
       throw RepositoryErrorMapper.wrap(error);
     }
+  }
+
+  String get _userId {
+    final id = Supabase.instance.client.auth.currentUser?.id;
+    if (id == null || id.isEmpty) {
+      throw RepositoryException('Session introuvable. Reconnectez-vous.');
+    }
+    return id;
   }
 }

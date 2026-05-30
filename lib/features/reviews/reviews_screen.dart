@@ -16,17 +16,17 @@ class ReviewsArgs {
     this.isVendor = false,
   });
 
-  /// The listing id, or the vendor id when [isVendor] is true.
+  /// The listing id. Vendor reviews are blocked in the public app.
   final String targetId;
 
-  /// The product or shop name shown in the header.
+  /// The product name shown in the header.
   final String targetName;
 
-  /// When true the reviews target a vendor; otherwise a listing.
+  /// Kept for legacy route compatibility; vendor reviews are blocked.
   final bool isVendor;
 }
 
-/// The full reviews list for a listing or a vendor, with a write action.
+/// The full reviews list for a product, with a write action.
 class ReviewsScreen extends StatefulWidget {
   const ReviewsScreen({required this.args, super.key});
 
@@ -50,15 +50,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       accessToken: context.read<AuthController>().accessToken,
     );
     if (widget.args.isVendor) {
-      final reviews = await repository.getVendorReviews(widget.args.targetId);
-      return reviews
-          .map((r) => _ReviewEntry(
-                authorName: r.customerName,
-                rating: r.rating,
-                comment: r.comment,
-                createdAt: r.createdAt,
-              ))
-          .toList();
+      throw RepositoryException(
+        'Les avis partenaires ne sont pas exposes dans NovaShop.',
+      );
     }
     final reviews = await repository.getListingReviews(widget.args.targetId);
     return reviews

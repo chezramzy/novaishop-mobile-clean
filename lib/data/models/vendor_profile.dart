@@ -37,15 +37,22 @@ class VendorProfile {
   factory VendorProfile.fromJson(Map<String, dynamic> json) {
     return VendorProfile(
       id: Json.str(json['id']),
-      userId: Json.str(json['userId']),
-      shopId: Json.str(json['shopId']),
-      kycStatus: Json.str(json['kycStatus'], 'draft'),
-      payoutAccountStatus: Json.str(json['payoutAccountStatus'], 'pending'),
-      commissionRate: Json.dbl(json['commissionRate']),
-      documentsComplete: Json.boolean(json['documentsComplete']),
-      sellerType: Json.strOrNull(json['sellerType']),
-      legalFullName: Json.strOrNull(json['legalFullName']),
-      createdAt: Json.str(json['createdAt']),
+      userId: Json.str(json['userId'] ?? json['user_id']),
+      shopId: Json.str(json['shopId'] ?? json['shop_id']),
+      kycStatus: Json.str(json['kycStatus'] ?? json['kyc_status'], 'draft'),
+      payoutAccountStatus: Json.str(
+        json['payoutAccountStatus'] ?? json['payout_account_status'],
+        'pending',
+      ),
+      commissionRate:
+          Json.dbl(json['commissionRate'] ?? json['commission_rate']),
+      documentsComplete: Json.boolean(
+        json['documentsComplete'] ?? json['documents_complete'],
+      ),
+      sellerType: Json.strOrNull(json['sellerType'] ?? json['seller_type']),
+      legalFullName:
+          Json.strOrNull(json['legalFullName'] ?? json['legal_name']),
+      createdAt: Json.str(json['createdAt'] ?? json['created_at']),
     );
   }
 }

@@ -86,7 +86,7 @@ class OrderStatusX {
     ),
     OrderStep(
       label: 'En préparation',
-      description: 'Le vendeur prépare votre colis.',
+      description: 'NovaShop prépare votre colis.',
       icon: Icons.inventory_2_outlined,
     ),
     OrderStep(

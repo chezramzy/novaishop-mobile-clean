@@ -24,7 +24,7 @@ class User {
       name: Json.str(json['name']),
       email: Json.str(json['email']),
       role: Json.str(json['role'], 'client'),
-      createdAt: Json.str(json['createdAt']),
+      createdAt: Json.str(json['createdAt'] ?? json['created_at']),
     );
   }
 }

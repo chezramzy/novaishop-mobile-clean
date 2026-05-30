@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/formatters.dart';
+import '../../data/models/category.dart';
+import '../../data/models/conversation.dart';
 import '../../data/models/listing.dart';
+import '../../data/models/app_notification.dart';
 import '../../data/models/partner_application.dart';
+import '../../data/models/user.dart';
+import '../../data/models/vendor_profile.dart';
 import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/repository_error.dart';
 import '../../design/components/nova_image.dart';
@@ -30,10 +35,22 @@ class _AdminScreenState extends State<AdminScreen> {
     final results = await Future.wait([
       repository.getPartnerApplications(),
       repository.getPendingListings(),
+      repository.getOrderConversations(),
+      repository.getCategories(),
+      repository.getUsers(),
+      repository.getVendors(),
+      repository.getNotifications(),
+      repository.getAuditEvents(),
     ]);
     return _AdminData(
       applications: results[0] as List<PartnerApplication>,
       listings: results[1] as List<Listing>,
+      conversations: results[2] as List<Conversation>,
+      categories: results[3] as List<Category>,
+      users: results[4] as List<User>,
+      vendors: results[5] as List<VendorProfile>,
+      notifications: results[6] as List<AppNotification>,
+      auditEvents: results[7] as List<Map<String, dynamic>>,
     );
   }
 
@@ -89,10 +106,63 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Future<void> _reject(Listing listing) async {
+    final note = await _askNote(
+      title: 'Refuser le produit',
+      hint: 'Expliquez clairement ce qui doit etre corrige',
+      requiredNote: true,
+    );
+    if (note == null) return;
+    if (!mounted) return;
     try {
-      await context.read<AdminRepository>().rejectListing(listing.id);
+      await context.read<AdminRepository>().rejectListing(
+            listing.id,
+            note: note,
+          );
       if (!mounted) return;
       _toast('Produit refuse.');
+      _reload();
+    } on RepositoryException catch (error) {
+      if (mounted) _toast(error.message, error: true);
+    }
+  }
+
+  Future<void> _editCategory({Category? category}) async {
+    final result = await showDialog<_CategoryDraft>(
+      context: context,
+      builder: (context) => _CategoryDialog(
+        category: category,
+        categories: _lastData?.categories ?? const [],
+      ),
+    );
+    if (result == null) return;
+    if (!mounted) return;
+    try {
+      await context.read<AdminRepository>().upsertCategory(
+            id: category?.id,
+            name: result.name,
+            slug: result.slug,
+            type: result.type,
+            description: result.description,
+            parentId: result.parentId,
+            active: result.active,
+            sortOrder: result.sortOrder,
+            formTemplate: result.formTemplate,
+          );
+      if (!mounted) return;
+      _toast(category == null ? 'Categorie creee.' : 'Categorie mise a jour.');
+      _reload();
+    } on RepositoryException catch (error) {
+      if (mounted) _toast(error.message, error: true);
+    }
+  }
+
+  Future<void> _toggleCategory(Category category) async {
+    try {
+      await context
+          .read<AdminRepository>()
+          .setCategoryActive(category, !category.active);
+      if (!mounted) return;
+      _toast(category.active ? 'Categorie desactivee.' : 'Categorie activee.');
       _reload();
     } on RepositoryException catch (error) {
       if (mounted) _toast(error.message, error: true);
@@ -102,6 +172,7 @@ class _AdminScreenState extends State<AdminScreen> {
   Future<String?> _askNote({
     required String title,
     required String hint,
+    bool requiredNote = false,
   }) {
     final controller = TextEditingController();
     return showDialog<String>(
@@ -120,7 +191,11 @@ class _AdminScreenState extends State<AdminScreen> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () {
+              final note = controller.text.trim();
+              if (requiredNote && note.isEmpty) return;
+              Navigator.of(context).pop(note);
+            },
             child: const Text('Confirmer'),
           ),
         ],
@@ -140,10 +215,12 @@ class _AdminScreenState extends State<AdminScreen> {
       );
   }
 
+  _AdminData? _lastData;
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 7,
       child: SoftGradientScaffold(
         child: RefreshIndicator(
           onRefresh: () async => _reload(),
@@ -160,6 +237,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 );
               }
               final data = snapshot.requireData;
+              _lastData = data;
               return Column(
                 children: [
                   Padding(
@@ -169,6 +247,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         const ScreenHeader(title: 'Administration'),
                         const SizedBox(height: AppSpacing.sm),
                         TabBar(
+                          isScrollable: true,
                           labelColor: context.colors.textPrimary,
                           unselectedLabelColor: AppColors.muted,
                           indicatorColor: AppColors.lime,
@@ -178,6 +257,15 @@ class _AdminScreenState extends State<AdminScreen> {
                                   'Demandes (${data.openApplications.length})',
                             ),
                             Tab(text: 'Produits (${data.listings.length})'),
+                            Tab(
+                              text: 'Messages (${data.conversations.length})',
+                            ),
+                            Tab(
+                              text: 'Categories (${data.categories.length})',
+                            ),
+                            Tab(text: 'Users (${data.users.length})'),
+                            Tab(text: 'Notifs (${data.notifications.length})'),
+                            Tab(text: 'Audit (${data.auditEvents.length})'),
                           ],
                         ),
                       ],
@@ -199,6 +287,17 @@ class _AdminScreenState extends State<AdminScreen> {
                           onApprove: _approve,
                           onReject: _reject,
                         ),
+                        _ConversationsTab(conversations: data.conversations),
+                        _CategoriesTab(
+                          categories: data.categories,
+                          onCreate: () => _editCategory(),
+                          onEdit: (category) =>
+                              _editCategory(category: category),
+                          onToggle: _toggleCategory,
+                        ),
+                        _UsersTab(users: data.users, vendors: data.vendors),
+                        _NotificationsTab(notifications: data.notifications),
+                        _AuditTab(events: data.auditEvents),
                       ],
                     ),
                   ),
@@ -216,14 +315,509 @@ class _AdminData {
   const _AdminData({
     required this.applications,
     required this.listings,
+    required this.conversations,
+    required this.categories,
+    required this.users,
+    required this.vendors,
+    required this.notifications,
+    required this.auditEvents,
   });
 
   final List<PartnerApplication> applications;
   final List<Listing> listings;
+  final List<Conversation> conversations;
+  final List<Category> categories;
+  final List<User> users;
+  final List<VendorProfile> vendors;
+  final List<AppNotification> notifications;
+  final List<Map<String, dynamic>> auditEvents;
 
   List<PartnerApplication> get openApplications => applications
       .where((item) => item.status == 'new' || item.status == 'reviewing')
       .toList(growable: false);
+}
+
+class _ConversationsTab extends StatelessWidget {
+  const _ConversationsTab({required this.conversations});
+
+  final List<Conversation> conversations;
+
+  @override
+  Widget build(BuildContext context) {
+    if (conversations.isEmpty) {
+      return const NovaEmptyState(
+        icon: Icons.chat_bubble_outline_rounded,
+        title: 'Aucune conversation',
+        message: 'Les commandes par message apparaitront ici.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      itemCount: conversations.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, index) {
+        final conversation = conversations[index];
+        return NovaCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.forum_outlined),
+            title: Text(
+              conversation.title,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: Text('Client ${conversation.customerId}'),
+            trailing: NovaBadge(
+              label: conversation.status.id,
+              tone: NovaBadgeTone.info,
+              dense: true,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CategoriesTab extends StatelessWidget {
+  const _CategoriesTab({
+    required this.categories,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onToggle,
+  });
+
+  final List<Category> categories;
+  final VoidCallback onCreate;
+  final ValueChanged<Category> onEdit;
+  final ValueChanged<Category> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      itemCount: categories.length + 1,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return NovaButton.primary(
+            label: 'Nouvelle categorie',
+            icon: Icons.add_rounded,
+            onPressed: onCreate,
+          );
+        }
+        if (categories.isEmpty) {
+          return const NovaEmptyState(
+            icon: Icons.category_outlined,
+            title: 'Aucune categorie',
+            message: 'Creez les categories du catalogue depuis cet ecran.',
+          );
+        }
+        final category = categories[index - 1];
+        return NovaCard(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    category.parentId == null
+                        ? Icons.folder_outlined
+                        : Icons.subdirectory_arrow_right_rounded,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          category.name,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '${category.slug} - ${category.formTemplate}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  NovaBadge(
+                    label: category.active ? 'Active' : 'Inactive',
+                    tone: category.active
+                        ? NovaBadgeTone.success
+                        : NovaBadgeTone.danger,
+                    dense: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: NovaButton.secondary(
+                      label: 'Modifier',
+                      icon: Icons.edit_outlined,
+                      onPressed: () => onEdit(category),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: NovaButton.secondary(
+                      label: category.active ? 'Desactiver' : 'Activer',
+                      icon: category.active
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      onPressed: () => onToggle(category),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UsersTab extends StatelessWidget {
+  const _UsersTab({required this.users, required this.vendors});
+
+  final List<User> users;
+  final List<VendorProfile> vendors;
+
+  @override
+  Widget build(BuildContext context) {
+    if (users.isEmpty) {
+      return const NovaEmptyState(
+        icon: Icons.people_outline_rounded,
+        title: 'Aucun utilisateur',
+        message: 'Les comptes Supabase apparaitront ici.',
+      );
+    }
+    final vendorByUser = {
+      for (final vendor in vendors) vendor.userId: vendor,
+    };
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      itemCount: users.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, index) {
+        final user = users[index];
+        final vendor = vendorByUser[user.id];
+        return NovaCard(
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline_rounded),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name.isEmpty ? user.email : user.name,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      user.email,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              NovaBadge(
+                label: vendor == null ? user.role : 'partner',
+                tone: vendor?.isApproved == true
+                    ? NovaBadgeTone.success
+                    : NovaBadgeTone.info,
+                dense: true,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NotificationsTab extends StatelessWidget {
+  const _NotificationsTab({required this.notifications});
+
+  final List<AppNotification> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    if (notifications.isEmpty) {
+      return const NovaEmptyState(
+        icon: Icons.notifications_none_rounded,
+        title: 'Aucune notification',
+        message: 'Les notifications in-app seront listees ici.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      itemCount: notifications.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, index) {
+        final notification = notifications[index];
+        return NovaCard(
+          child: Row(
+            children: [
+              Icon(notification.read
+                  ? Icons.notifications_none_rounded
+                  : Icons.notifications_active_outlined),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notification.title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              NovaBadge(
+                label: notification.read ? 'Lue' : 'Non lue',
+                tone: notification.read
+                    ? NovaBadgeTone.info
+                    : NovaBadgeTone.warning,
+                dense: true,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CategoryDraft {
+  const _CategoryDraft({
+    required this.name,
+    required this.slug,
+    required this.type,
+    required this.description,
+    required this.parentId,
+    required this.active,
+    required this.sortOrder,
+    required this.formTemplate,
+  });
+
+  final String name;
+  final String slug;
+  final String type;
+  final String description;
+  final String? parentId;
+  final bool active;
+  final int sortOrder;
+  final String formTemplate;
+}
+
+class _CategoryDialog extends StatefulWidget {
+  const _CategoryDialog({required this.categories, this.category});
+
+  final List<Category> categories;
+  final Category? category;
+
+  @override
+  State<_CategoryDialog> createState() => _CategoryDialogState();
+}
+
+class _CategoryDialogState extends State<_CategoryDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _slug;
+  late final TextEditingController _description;
+  late final TextEditingController _sortOrder;
+  late String _formTemplate;
+  String? _parentId;
+  bool _active = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final category = widget.category;
+    _name = TextEditingController(text: category?.name ?? '');
+    _slug = TextEditingController(text: category?.slug ?? '');
+    _description = TextEditingController(text: category?.description ?? '');
+    _sortOrder = TextEditingController(text: '${category?.sortOrder ?? 0}');
+    _formTemplate = category?.formTemplate ?? 'standard';
+    _parentId = category?.parentId;
+    _active = category?.active ?? true;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _slug.dispose();
+    _description.dispose();
+    _sortOrder.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    final slug = _slug.text.trim();
+    if (name.length < 2 || slug.length < 2) return;
+    Navigator.of(context).pop(
+      _CategoryDraft(
+        name: name,
+        slug: slug,
+        type: 'product',
+        description: _description.text.trim(),
+        parentId: _parentId,
+        active: _active,
+        sortOrder: int.tryParse(_sortOrder.text.trim()) ?? 0,
+        formTemplate: _formTemplate,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rootCategories = widget.categories
+        .where(
+            (item) => item.parentId == null && item.id != widget.category?.id)
+        .toList(growable: false);
+    return AlertDialog(
+      title: Text(
+        widget.category == null ? 'Nouvelle categorie' : 'Modifier categorie',
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Nom'),
+            ),
+            TextField(
+              controller: _slug,
+              decoration: const InputDecoration(labelText: 'Slug'),
+            ),
+            TextField(
+              controller: _description,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+            DropdownButtonFormField<String?>(
+              initialValue: _parentId,
+              decoration: const InputDecoration(labelText: 'Parent'),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Categorie racine'),
+                ),
+                for (final category in rootCategories)
+                  DropdownMenuItem<String?>(
+                    value: category.id,
+                    child: Text(category.name),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _parentId = value),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _formTemplate,
+              decoration: const InputDecoration(labelText: 'Formulaire'),
+              items: const [
+                DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                DropdownMenuItem(value: 'fashion', child: Text('Vetement')),
+                DropdownMenuItem(value: 'bag', child: Text('Sac')),
+                DropdownMenuItem(value: 'beauty', child: Text('Beaute')),
+                DropdownMenuItem(
+                  value: 'electronics',
+                  child: Text('Electronique'),
+                ),
+                DropdownMenuItem(value: 'laptop', child: Text('Laptop')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _formTemplate = value ?? 'standard'),
+            ),
+            TextField(
+              controller: _sortOrder,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Ordre'),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active'),
+              value: _active,
+              onChanged: (value) => setState(() => _active = value),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Enregistrer'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuditTab extends StatelessWidget {
+  const _AuditTab({required this.events});
+
+  final List<Map<String, dynamic>> events;
+
+  @override
+  Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return const NovaEmptyState(
+        icon: Icons.history_rounded,
+        title: 'Aucun evenement',
+        message: 'Les actions admin importantes seront listees ici.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      itemCount: events.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, index) {
+        final event = events[index];
+        return NovaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${event['action'] ?? ''}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${event['entity_type'] ?? ''} - ${event['entity_id'] ?? ''}',
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${event['created_at'] ?? ''}',
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ApplicationsTab extends StatelessWidget {

@@ -176,7 +176,7 @@ class ReviewTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      authorName.isEmpty ? 'Client NovAiShop' : authorName,
+                      authorName.isEmpty ? 'Client NovaShop' : authorName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w900),

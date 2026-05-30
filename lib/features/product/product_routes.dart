@@ -2,7 +2,6 @@ import '../../app/router/app_router.dart';
 import '../../app/router/route_names.dart';
 import '../reviews/reviews_screen.dart';
 import '../reviews/write_review_screen.dart';
-import '../shop/shop_tab.dart';
 import 'product_detail_screen.dart';
 
 /// Resolves the listing slug from a route argument, accepting either a
@@ -39,8 +38,6 @@ WriteReviewArgs _writeReviewArgsFrom(Object? arguments) {
 final FeatureRoutes productRoutes = FeatureRoutes(<String, RouteArgsBuilder>{
   RouteNames.productDetail: (args) =>
       ProductDetailScreen(slug: _slugFrom(args)),
-  RouteNames.shop: (_) => const ShopTab(),
-  RouteNames.shopPage: (_) => const ShopTab(),
   RouteNames.reviews: (args) => ReviewsScreen(args: _reviewsArgsFrom(args)),
   RouteNames.writeReview: (args) =>
       WriteReviewScreen(args: _writeReviewArgsFrom(args)),

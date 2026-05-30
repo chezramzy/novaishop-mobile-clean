@@ -42,12 +42,12 @@ class AppRouter {
   /// shared edit point between the parallel workstreams.
   static final List<FeatureRoutes> featureRoutes = <FeatureRoutes>[
     discoveryRoutes, // WS1 — découverte & catalogue
-    productRoutes, // WS2 — produit, avis, boutique
-    checkoutRoutes, // WS3 — panier, checkout, paiement
+    productRoutes, // WS2 - produit et avis
+    checkoutRoutes, // WS3 - panier et commande par message
     ordersRoutes, // WS4 — commandes, favoris, adresses
     authRoutes, // WS5 — auth & onboarding
     accountRoutes, // WS6 — profil, réglages, support, notifications
-    sellerRoutes, // WS7 — espace vendeur
+    sellerRoutes, // WS7 - espace partenaire
     deliveryRoutes, // WS8 — livraison & assistant IA
   ];
 

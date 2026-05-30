@@ -10,8 +10,8 @@ import '../auth/auth_controller.dart';
 import 'settings_preferences.dart';
 import 'theme_controller.dart';
 
-/// Adresse de contact du support NovAiShop.
-const _supportEmail = 'support@novaishop.com';
+/// Adresse de contact du support NovaShop.
+const _supportEmail = 'support@NovaShop.com';
 
 /// Écran « Réglages » : préférences de notifications, apparence, langue
 /// et gestion du compte (déconnexion, suppression).
@@ -282,7 +282,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           '${Uri.encodeComponent('Demande de suppression de compte')}'
           '&body=${Uri.encodeComponent(
         'Bonjour,\n\n'
-        'Je demande la suppression définitive de mon compte NovAiShop '
+        'Je demande la suppression définitive de mon compte NovaShop '
         'et de mes données personnelles.\n\n'
         'Compte : ${user?.email ?? ''}\n'
         'Identifiant : ${user?.id ?? ''}\n\n'
@@ -504,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Langue',
                   trailing: 'Français',
                   onTap: () => _info(
-                    'NovAiShop est proposé en français.',
+                    'NovaShop est proposé en français.',
                   ),
                 ),
               ],
@@ -592,7 +592,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           const Center(
             child: Text(
-              'NovAiShop - version 0.1.8-test',
+              'NovaShop - version $appReleaseVersionLabel',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),

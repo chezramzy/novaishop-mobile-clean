@@ -15,7 +15,7 @@ import '../payment/payment_method.dart';
 import 'checkout_flow.dart';
 import 'order_confirmation_screen.dart';
 
-/// The payment screen: choose a method and confirm the (mock) payment.
+/// Legacy payment screen kept out of the production route table.
 ///
 /// On confirm it runs the full API flow — create order → create intent →
 /// confirm payment — then clears the cart and shows the confirmation.
@@ -592,7 +592,7 @@ class _SecurityNote extends StatelessWidget {
         const SizedBox(width: AppSpacing.xxs),
         Flexible(
           child: Text(
-            'Paiement sécurisé — démonstration NovAiShop.',
+            'Paiement sécurisé — démonstration NovaShop.',
             style: AppTypography.caption,
           ),
         ),

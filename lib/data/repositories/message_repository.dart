@@ -25,45 +25,17 @@ class MessageRepository {
   }
 
   Future<Conversation> startOrderConversation({
-    required String customerId,
     required List<ConversationOrderItem> items,
-    required double total,
   }) async {
     _requireSupabase();
     try {
-      final client = Supabase.instance.client;
-      final inserted = await client
-          .from('conversations')
-          .insert({
-            'customer_id': customerId,
-            'status': ConversationStatus.awaitingConfirmation.id,
-            'title': 'Commande NovaShop',
-            'total_amount': total,
-          })
-          .select()
-          .single();
-      final conversation = Conversation.fromJson(inserted);
-      await client.from('conversation_order_items').insert(
-            items
-                .map(
-                  (item) => {
-                    'conversation_id': conversation.id,
-                    'listing_id': item.listingId,
-                    'variant_id': item.variantId,
-                    'title': item.title,
-                    'quantity': item.quantity,
-                    'unit_price': item.unitPrice,
-                    'total_price': item.totalPrice,
-                    'options': item.options,
-                  },
-                )
-                .toList(),
-          );
-      await sendSystemMessage(
-        conversation.id,
-        _summaryMessage(items, total),
+      final row = await Supabase.instance.client.rpc(
+        'create_order_conversation_from_cart',
+        params: {
+          'p_items': items.map((item) => item.toJson()).toList(),
+        },
       );
-      return conversation;
+      return Conversation.fromJson(Map<String, dynamic>.from(row as Map));
     } catch (error) {
       throw RepositoryErrorMapper.wrap(error);
     }
@@ -82,6 +54,55 @@ class MessageRepository {
               Map<String, dynamic>.from(row),
             ))
         .toList();
+  }
+
+  Future<Conversation> getConversation(String conversationId) async {
+    _requireSupabase();
+    try {
+      final row = await Supabase.instance.client
+          .from('conversations')
+          .select()
+          .eq('id', conversationId)
+          .single();
+      return Conversation.fromJson(Map<String, dynamic>.from(row));
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
+  }
+
+  Stream<Conversation> watchConversation(Conversation initial) {
+    _requireSupabase();
+    final controller = StreamController<Conversation>();
+    RealtimeChannel? channel;
+
+    Future<void> emitLatest() async {
+      if (!controller.isClosed) {
+        controller.add(await getConversation(initial.id));
+      }
+    }
+
+    controller.add(initial);
+    channel = Supabase.instance.client
+        .channel('conversation:${initial.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'conversations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: initial.id,
+          ),
+          callback: (_) => emitLatest(),
+        )
+        .subscribe();
+
+    controller.onCancel = () async {
+      if (channel != null) {
+        await Supabase.instance.client.removeChannel(channel);
+      }
+    };
+    return controller.stream;
   }
 
   Stream<List<ConversationMessage>> watchMessages(String conversationId) {
@@ -145,14 +166,14 @@ class MessageRepository {
 
   Future<void> confirmDelivery(String conversationId) async {
     _requireSupabase();
-    await Supabase.instance.client
-        .from('conversations')
-        .update({'status': ConversationStatus.buyerConfirmed.id}).eq(
-            'id', conversationId);
-    await sendSystemMessage(
-      conversationId,
-      'Livraison confirmee par l acheteur. Merci pour votre confiance.',
-    );
+    try {
+      await Supabase.instance.client.rpc(
+        'confirm_order_conversation_delivery',
+        params: {'p_conversation_id': conversationId},
+      );
+    } catch (error) {
+      throw RepositoryErrorMapper.wrap(error);
+    }
   }
 
   Future<void> _sendMessage(
@@ -173,16 +194,5 @@ class MessageRepository {
       },
       'body': trimmed,
     });
-  }
-
-  String _summaryMessage(List<ConversationOrderItem> items, double total) {
-    final lines = [
-      'Nouvelle demande de commande:',
-      for (final item in items)
-        '- ${item.quantity} x ${item.title}'
-            '${item.options.isEmpty ? '' : ' (${item.options.values.join(', ')})'}',
-      'Total estime: ${total.toStringAsFixed(0)} XOF',
-    ];
-    return lines.join('\n');
   }
 }

@@ -111,6 +111,8 @@ class CatalogRepository {
       final rows = await Supabase.instance.client
           .from('categories')
           .select()
+          .eq('active', true)
+          .order('sort_order')
           .order('name');
       final items = rows
           .whereType<Map>()
@@ -139,16 +141,19 @@ class CatalogRepository {
     int pageSize = 20,
   }) async {
     try {
-      var request = Supabase.instance.client.from('listings').select();
+      var request = Supabase.instance.client
+          .from('listings')
+          .select('*, product_variants(*), listing_images(*)');
       if (categoryType != null && categoryType.isNotEmpty) {
         request = request.eq('category_type', categoryType);
       }
       if (categoryId != null && categoryId.isNotEmpty) {
         request = request.eq('category_id', categoryId);
       }
-      if (status != null && status.isNotEmpty) {
-        request = request.eq('status', status);
-      }
+      request = request.eq(
+        'status',
+        status != null && status.isNotEmpty ? status : 'published',
+      );
       if (query != null && query.trim().isNotEmpty) {
         request = request.ilike('title', '%${query.trim()}%');
       }
@@ -157,7 +162,7 @@ class CatalogRepository {
           .range((page - 1) * pageSize, (page * pageSize) - 1);
       var listings = rows
           .whereType<Map>()
-          .map((row) => Listing.fromJson(Map<String, dynamic>.from(row)))
+          .map((row) => _listingFromRow(Map<String, dynamic>.from(row)))
           .toList();
       if (minPrice != null) {
         listings = listings.where((item) => item.price >= minPrice).toList();
@@ -179,17 +184,55 @@ class CatalogRepository {
     try {
       final rows = await Supabase.instance.client
           .from('listings')
-          .select()
+          .select('*, product_variants(*), listing_images(*)')
           .or('slug.eq.$slug,id.eq.$slug')
+          .eq('status', 'published')
           .limit(1);
       if (rows.isNotEmpty) {
-        return Listing.fromJson(Map<String, dynamic>.from(rows.first as Map));
+        return _listingFromRow(Map<String, dynamic>.from(rows.first as Map));
       }
       throw RepositoryException('Produit introuvable.');
     } catch (error) {
       if (error is RepositoryException) rethrow;
       throw RepositoryErrorMapper.wrap(error);
     }
+  }
+
+  Listing _listingFromRow(Map<String, dynamic> row) {
+    final attributes =
+        Map<String, dynamic>.from(row['attributes'] as Map? ?? {});
+    final variants = row['product_variants'];
+    if (variants is List && variants.isNotEmpty) {
+      attributes['variants'] = [
+        for (final raw in variants.whereType<Map>())
+          {
+            'id': '${raw['id'] ?? ''}',
+            'options': raw['options'] is Map
+                ? Map<String, dynamic>.from(raw['options'] as Map)
+                : <String, dynamic>{},
+            'inventory': raw['inventory'],
+            'price': raw['price'],
+            'imageUrl': raw['image_url'],
+          }
+      ];
+    }
+    final images = row['listing_images'];
+    if ((row['image_url'] == null || '${row['image_url']}'.trim().isEmpty) &&
+        images is List &&
+        images.isNotEmpty) {
+      final sorted = images.whereType<Map>().toList()
+        ..sort((a, b) {
+          if (a['is_primary'] == true && b['is_primary'] != true) return -1;
+          if (b['is_primary'] == true && a['is_primary'] != true) return 1;
+          return ((a['sort_order'] as num?)?.toInt() ?? 0)
+              .compareTo((b['sort_order'] as num?)?.toInt() ?? 0);
+        });
+      if (sorted.isNotEmpty) row['image_url'] = sorted.first['url'];
+    }
+    return Listing.fromJson({
+      ...row,
+      'attributes': attributes,
+    });
   }
 
   /// Top-selling published listings.
@@ -268,7 +311,9 @@ class CatalogRepository {
   /// A public shop page resolved by slug.
   Future<ShopPage> getShopBySlug(String slug) async {
     try {
-      throw RepositoryException('Boutique indisponible en mode local.');
+      throw RepositoryException(
+        'Les pages boutique publiques ne sont plus exposees.',
+      );
     } catch (error) {
       throw RepositoryErrorMapper.wrap(error);
     }

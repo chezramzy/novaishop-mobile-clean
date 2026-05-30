@@ -93,7 +93,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
                 AppSpacing.hGapSm,
-                Text('NovAiShop', style: AppTypography.title),
+                Text('NovaShop', style: AppTypography.title),
                 const Spacer(),
                 AnimatedOpacity(
                   duration: AppMotion.fast,

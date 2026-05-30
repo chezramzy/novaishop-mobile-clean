@@ -1,6 +1,6 @@
 import 'listing.dart';
 
-/// Snapshot of a seller's shop, returned by `GET /v1/vendors/me/dashboard`.
+/// Snapshot of a partner workspace.
 class SellerWorkspace {
   const SellerWorkspace({
     required this.vendorId,
@@ -49,7 +49,7 @@ class SellerWorkspace {
     return SellerWorkspace(
       vendorId: vendor['id'] as String? ?? '',
       shopId: shop['id'] as String? ?? vendor['shopId'] as String? ?? '',
-      shopName: shop['name'] as String? ?? 'Ma boutique',
+      shopName: shop['name'] as String? ?? 'Catalogue partenaire',
       shopTagline: shop['tagline'] as String?,
       shopCity: shop['city'] as String?,
       kycStatus: vendor['kycStatus'] as String? ?? 'submitted',

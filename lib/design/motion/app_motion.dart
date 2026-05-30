@@ -1,6 +1,6 @@
 import 'package:flutter/animation.dart';
 
-/// Standard animation durations and curves. All NovAiShop animations pull
+/// Standard animation durations and curves. All NovaShop animations pull
 /// their timing from here so motion stays consistent and subtle (≤ 400 ms).
 class AppMotion {
   const AppMotion._();

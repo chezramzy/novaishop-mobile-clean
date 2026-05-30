@@ -122,7 +122,7 @@ class _BecomeDriverView extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         Text(
-          'Devenez livreur NovAiShop',
+          'Devenez livreur NovaShop',
           textAlign: TextAlign.center,
           style: AppTypography.headline,
         ).fadeSlideIn(),

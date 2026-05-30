@@ -30,7 +30,7 @@ class LegalDocument {
 class SupportContent {
   const SupportContent._();
 
-  static const supportEmail = 'support@novaishop.com';
+  static const supportEmail = 'support@NovaShop.com';
   static const supportPhone = '+33 1 84 80 12 34';
 
   static const Map<String, List<FaqEntry>> faq = {
@@ -55,7 +55,7 @@ class SupportContent {
     'Paiements & remboursements': [
       FaqEntry(
         'Quels moyens de paiement sont acceptes ?',
-        'NovAiShop accepte les cartes bancaires ainsi que les principaux '
+        'NovaShop accepte les cartes bancaires ainsi que les principaux '
             'portefeuilles mobiles. Vos donnees de paiement sont chiffrees.',
       ),
       FaqEntry(
@@ -86,11 +86,11 @@ class SupportContent {
   static const LegalDocument legalNotice = LegalDocument(
     title: 'Mentions legales',
     intro: 'Les presentes mentions legales s appliquent a l application '
-        'mobile NovAiShop et a l ensemble de ses services.',
+        'mobile NovaShop et a l ensemble de ses services.',
     sections: [
       LegalSection(
         'Editeur',
-        'L application NovAiShop est editee par NovAiShop SAS, catalogue '
+        'L application NovaShop est editee par NovaShop SAS, catalogue '
             'centralise avec partenaires operationnels et livreurs.',
       ),
       LegalSection(
@@ -106,7 +106,7 @@ class SupportContent {
       ),
       LegalSection(
         'Responsabilite',
-        'NovAiShop presente les produits sous sa marque et coordonne les '
+        'NovaShop presente les produits sous sa marque et coordonne les '
             'partenaires operationnels necessaires au traitement des commandes.',
       ),
     ],
@@ -145,7 +145,7 @@ class SupportContent {
 
   static const LegalDocument termsOfUse = LegalDocument(
     title: 'Conditions generales d utilisation',
-    intro: 'L utilisation de l application NovAiShop implique l acceptation '
+    intro: 'L utilisation de l application NovaShop implique l acceptation '
         'pleine et entiere des presentes conditions.',
     sections: [
       LegalSection(
@@ -165,7 +165,7 @@ class SupportContent {
       ),
       LegalSection(
         'Modification des conditions',
-        'NovAiShop se reserve le droit de faire evoluer les presentes '
+        'NovaShop se reserve le droit de faire evoluer les presentes '
             'conditions. Les utilisateurs sont informes de toute modification.',
       ),
     ],

@@ -26,10 +26,8 @@ class RouteNames {
   static const search = '/search';
   static const flashSales = '/flash-sales';
 
-  // Product, reviews, shop (WS2).
+  // Product and reviews (WS2).
   static const productDetail = '/product';
-  static const shop = '/shop';
-  static const shopPage = '/shop/page';
   static const reviews = '/reviews';
   static const writeReview = '/reviews/write';
 

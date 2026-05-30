@@ -1,4 +1,4 @@
-/// Barrel export for the entire NovAiShop design system.
+/// Barrel export for the entire NovaShop design system.
 ///
 /// Feature code should import this single file to get tokens, components,
 /// feedback widgets and the motion kit.

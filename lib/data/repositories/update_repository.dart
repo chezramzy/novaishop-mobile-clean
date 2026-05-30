@@ -5,8 +5,8 @@ import 'package:shorebird_code_push/shorebird_code_push.dart';
 
 import 'repository_error.dart';
 
-const appReleaseTag = 'v0.1.8-test';
-const appReleaseVersionLabel = '0.1.8-test';
+const appReleaseTag = 'v0.1.9-test';
+const appReleaseVersionLabel = '0.1.9-test';
 
 class AppUpdateInfo {
   const AppUpdateInfo({
