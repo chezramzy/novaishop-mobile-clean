@@ -355,6 +355,23 @@ Regles :
 - Aucun identifiant local `user-*` ne doit etre cree.
 - Les erreurs Supabase doivent etre affichees.
 
+### UC-AUTH-00 - Choisir un parcours d'entree
+
+Objectif : orienter l'utilisateur sans bloquer la decouverte.
+
+Flux nominal :
+
+1. L'utilisateur peut arriver sur l'accueil sans compte.
+2. S'il lance un parcours de compte, l'application peut lui proposer un role d'intention : acheter, proposer des produits, livrer.
+3. Le compte cree reste d'abord un compte Supabase Auth reel.
+4. Les droits specifiques ne sont debloques qu'apres validation ou role effectif.
+
+Regles :
+
+- Choisir "proposer des produits" ne doit pas creer automatiquement un partenaire approuve.
+- Choisir "livrer" ne doit pas donner acces aux livraisons sans validation ou profil livreur.
+- Le role public par defaut reste client tant que le backend ne confirme pas mieux.
+
 ### UC-AUTH-02 - Connexion
 
 Flux nominal :
@@ -384,6 +401,24 @@ Erreurs :
 
 - Lien expire : afficher un message clair.
 - Session de recovery absente : inviter a refaire la demande.
+
+### UC-AUTH-04 - Changer son mot de passe
+
+Objectif : permettre a un utilisateur connecte de securiser son compte.
+
+Flux nominal :
+
+1. L'utilisateur ouvre Profil ou Reglages.
+2. Il choisit Changer le mot de passe.
+3. Il saisit le nouveau mot de passe selon les contraintes.
+4. Supabase Auth met a jour le mot de passe.
+5. L'application confirme la reussite.
+
+Regles :
+
+- L'utilisateur doit etre connecte.
+- Les erreurs Supabase doivent etre affichees.
+- Aucune sauvegarde locale du mot de passe n'est autorisee.
 
 ### UC-PRO-01 - Modifier son profil
 
@@ -419,6 +454,22 @@ Notifications attendues :
 - message NovaShop ;
 - systeme.
 
+### UC-PRO-03 - Gerer ses reglages
+
+Objectif : personnaliser l'experience sans toucher aux donnees metier.
+
+Capacites :
+
+- changer le theme ;
+- consulter la version ;
+- ouvrir profil, mot de passe, support ;
+- regler des preferences d'interface si elles existent.
+
+Regles :
+
+- Les preferences locales sont autorisees uniquement pour l'UI.
+- Les reglages ne doivent pas contenir de validation metier locale.
+
 ## 6. Cas d'utilisation catalogue et produit
 
 ### UC-CAT-01 - Consulter categories et sous-categories
@@ -449,6 +500,33 @@ Cas limites :
 
 - Categorie sans produit : etat vide.
 - Categorie inactive : ne doit pas etre proposee publiquement.
+
+### UC-CAT-03 - Consulter les ventes flash
+
+Objectif : mettre en avant des produits publies en promotion temporaire.
+
+Flux nominal :
+
+1. L'utilisateur ouvre la section Ventes flash depuis l'accueil ou le catalogue.
+2. L'application charge uniquement les produits publies marques en promotion.
+3. Le compte a rebours ou la date de fin est affiche.
+4. L'utilisateur ouvre une fiche produit et suit le parcours normal.
+
+Regles :
+
+- Un produit en vente flash reste soumis a `status = published`.
+- Une promotion expiree ne doit plus etre mise en avant.
+- Le partenaire reste invisible.
+
+### UC-CAT-04 - Gerer les types catalogue herites
+
+Contexte : le code conserve des types `product`, `service`, `property` pour compatibilite.
+
+Regles actuelles :
+
+- Le modele cible public prioritaire est le produit physique ou assimilable.
+- Les services/proprietes ne doivent pas recreer des pages vendeur ou boutique publique.
+- Toute extension future vers service/property doit passer par catalogue NovaShop, moderation admin et partenaire invisible.
 
 ### UC-PROD-01 - Selectionner une variante
 
@@ -603,6 +681,38 @@ Regle :
 - Les routes legacy `/checkout`, `/payment`, `/payment/methods` ne doivent plus exposer de paiement classique.
 - Elles doivent ramener au panier ou afficher indisponible.
 - Aucun paiement local ou mock ne doit creer une commande reelle.
+
+### UC-ORDER-06 - Consulter l'historique des commandes
+
+Objectif : permettre au client de retrouver ses commandes et conversations.
+
+Flux nominal :
+
+1. Le client ouvre Profil puis Mes commandes.
+2. L'application charge les commandes Supabase liees a `customer_id`.
+3. Le client voit les commandes recentes, leur statut et leur total.
+4. Il ouvre le detail d'une commande.
+
+Regles :
+
+- Un client ne lit que ses commandes.
+- L'admin peut lire toutes les commandes selon RLS.
+- Les commandes creees par conversation doivent rester coherentes avec le thread NovaShop.
+
+### UC-ORDER-07 - Ouvrir le detail et le suivi commande
+
+Flux nominal :
+
+1. Le client ouvre une commande.
+2. Il consulte les articles, montant, statut et etapes.
+3. Il ouvre le suivi si disponible.
+4. Il revient vers la conversation NovaShop pour toute clarification.
+
+Regles :
+
+- Le detail ne doit pas afficher le partenaire.
+- Les etapes de tracking doivent rester compatibles avec les statuts conversation et livraison.
+- Si le paiement reel n'est pas branche, l'ecran ne doit pas simuler un paiement reussi.
 
 ## 8. Cas d'utilisation favoris, adresses et coupons
 
@@ -795,6 +905,41 @@ Flux :
 3. Si refuse, il voit la note admin.
 4. Il corrige et resoumet si autorise.
 
+### UC-PART-03B - Modifier un produit existant
+
+Objectif : permettre au partenaire de corriger une fiche ou mettre a jour stock/prix.
+
+Flux nominal :
+
+1. Le partenaire ouvre un produit depuis son espace.
+2. Il modifie les champs autorises.
+3. La modification repasse en `pending_review` si elle impacte la fiche publique.
+4. L'admin revalide si necessaire.
+
+Regles :
+
+- Les changements critiques ne doivent pas contourner la moderation.
+- Le partenaire ne peut modifier que ses propres produits.
+- Les modifications restent invisibles publiquement jusqu'a publication.
+
+### UC-PART-03C - Gerer les documents KYC
+
+Objectif : verifier ou completer le dossier partenaire selon les besoins operationnels.
+
+Flux nominal :
+
+1. Le partenaire ouvre le centre KYC ou dossier.
+2. Il consulte les documents ou statuts demandes.
+3. Il upload les fichiers requis.
+4. Les fichiers sont stockes dans un espace prive.
+5. L'admin peut consulter et valider/refuser.
+
+Regles :
+
+- Les documents KYC ne sont jamais publics.
+- Les documents doivent utiliser Storage prive et URLs signees.
+- Le statut KYC ne doit pas etre simule localement.
+
 ### UC-PART-04 - Gerer commandes liees
 
 Flux :
@@ -839,6 +984,23 @@ Regles :
 
 - Un coupon partenaire ne doit pas exposer l'identite partenaire au client.
 - Les coupons doivent respecter les contraintes d'usage.
+
+### UC-PART-07 - Upload de medias produit
+
+Objectif : centraliser les images publiques et privees.
+
+Flux nominal :
+
+1. Le partenaire choisit une image.
+2. L'application upload vers Supabase Storage.
+3. L'URL ou le path retourne est associe au produit.
+4. Les images publiques produit peuvent etre affichees si le produit est publie.
+
+Regles :
+
+- Les images de demande/KYC restent privees.
+- Les images produit publiees peuvent etre publiques.
+- Un upload echoue doit bloquer la soumission si l'image est requise.
 
 ## 11. Cas d'utilisation admin
 
@@ -1007,6 +1169,22 @@ Regles :
 - Les transitions doivent etre controlees.
 - La livraison `delivered` peut debloquer la confirmation client.
 
+### UC-DRV-04 - Consulter ses gains
+
+Objectif : donner de la visibilite au livreur sur son activite.
+
+Flux nominal :
+
+1. Le livreur ouvre Gains.
+2. L'application charge les revenus ou statistiques depuis Supabase.
+3. Le livreur consulte total, historique et elements recents.
+
+Regles :
+
+- Les gains ne doivent pas etre calcules depuis un mock local.
+- Le livreur ne voit que ses propres gains.
+- Les montants definitifs dependent du modele financier valide par NovaShop.
+
 ## 13. Cas d'utilisation support et legal
 
 ### UC-SUP-01 - Consulter FAQ
@@ -1041,6 +1219,22 @@ Regles :
 
 - Les textes doivent correspondre au modele centralise NovaShop.
 - Les partenaires invisibles doivent etre expliques en interne/legal si necessaire, sans creer une experience multi-boutiques publique.
+
+### UC-SUP-04 - Gérer les informations de contact externes
+
+Objectif : permettre au support de rester joignable sans casser l'experience.
+
+Flux nominal :
+
+1. L'utilisateur ouvre Contact.
+2. Il choisit un canal disponible.
+3. L'application lance l'application externe ou affiche une erreur claire.
+
+Regles :
+
+- Les liens externes doivent etre maintenus a jour.
+- Une ouverture impossible ne doit pas faire planter l'application.
+- Aucun canal ne doit exposer un partenaire directement.
 
 ## 14. Cas d'utilisation assistant
 
@@ -1172,6 +1366,30 @@ Comportement :
 - la commande par message revalide et refuse ;
 - l'utilisateur doit modifier la quantite.
 
+### Mise a jour indisponible
+
+Comportement :
+
+- si GitHub Releases est inaccessible, afficher une erreur douce ou ignorer la proposition ;
+- ne pas bloquer l'application ;
+- ne pas installer depuis une source non officielle.
+
+### Deep link inconnu
+
+Comportement :
+
+- les deep links connus sont traites par route dediee ;
+- les routes inconnues affichent une page introuvable ou ramènent vers un flux sûr ;
+- les routes legacy paiement/checkout ne doivent pas relancer un paiement.
+
+### Donnees incompatibles apres migration
+
+Comportement :
+
+- afficher un etat erreur ou vide explicite ;
+- inviter a mettre a jour l'application si le schema requis n'est pas disponible ;
+- ne pas reconstruire une donnee metier par approximation locale.
+
 ## 17. Anti-cas d'utilisation interdits
 
 Ces parcours ne doivent pas exister cote client :
@@ -1272,6 +1490,61 @@ Ces parcours ne doivent pas exister cote client :
 - read ;
 - link ;
 - created_at.
+
+### Adresse
+
+- id ;
+- user_id ;
+- label ;
+- line ;
+- city ;
+- country ;
+- phone ;
+- is_default ;
+- timestamps.
+
+### Favori
+
+- id ;
+- user_id ;
+- listing_id ;
+- created_at.
+
+### Livraison
+
+- id ;
+- order_id ;
+- driver_id ;
+- status ;
+- adresses pickup/livraison ;
+- informations client strictement necessaires ;
+- frais et gain livreur ;
+- tracking_number ;
+- timestamps.
+
+### Coupon
+
+- id ;
+- code ;
+- discount_type ;
+- discount_value ;
+- min_order_amount ;
+- max_uses ;
+- used_count ;
+- valid_from ;
+- valid_to ;
+- active ;
+- vendor_id interne optionnel.
+
+### Media
+
+- bucket ;
+- object_key ;
+- url publique si applicable ;
+- owner_user_id ;
+- vendor_id interne si applicable ;
+- type/folder ;
+- timestamps.
 
 ## 20. Scenarios de recette bout en bout
 
@@ -1398,6 +1671,31 @@ Le code conserve certains noms historiques `seller/shop` pour compatibilite. A t
 - garder migrations compatibles ;
 - ne jamais exposer ces termes cote client.
 
+### Routes et ecrans legacy
+
+Certains ecrans existent encore pour compatibilite technique ou historique :
+
+- checkout classique ;
+- paiement classique ;
+- pages shop legacy ;
+- routes seller historiques.
+
+Regles :
+
+- ils ne doivent pas etre exposes dans le parcours client principal ;
+- ils doivent rediriger vers un flux sûr ou afficher indisponible ;
+- toute reactivation doit passer par une decision produit explicite et une verification Supabase/RLS.
+
+### Services, proprietes et autres verticales
+
+Si NovaShop etend le catalogue au-dela des produits :
+
+- garder l'identite NovaShop unique ;
+- ne pas creer de vitrine partenaire publique ;
+- adapter categories, formulaires, moderation et conversation ;
+- definir les donnees minimales avant implementation ;
+- verifier le parcours livraison/paiement specifique.
+
 ## 22. Definition de termine
 
 Un cas d'utilisation est termine quand :
@@ -1411,4 +1709,3 @@ Un cas d'utilisation est termine quand :
 - les partenaires restent invisibles cote client ;
 - l'admin peut voir et traiter les actions qui necessitent validation ;
 - les notifications importantes sont creees.
-
