@@ -7,13 +7,15 @@ import 'package:provider/provider.dart';
 import '../../data/models/auth_user.dart';
 import '../../design/design_system.dart';
 import 'auth_controller.dart';
+import 'auth_redirect.dart';
 import 'widgets/auth_scaffold.dart';
 
 /// Final registration step: confirm the email address with a 4-digit code.
 class VerificationScreen extends StatefulWidget {
-  const VerificationScreen({required this.email, super.key});
+  const VerificationScreen({required this.email, this.redirect, super.key});
 
   final String email;
+  final AuthRedirect? redirect;
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -74,14 +76,22 @@ class _VerificationScreenState extends State<VerificationScreen> {
     if (_code.length == _digits) _verify();
   }
 
-  void _resend() {
+  Future<void> _resend() async {
     if (_secondsLeft > 0) return;
-    _startCountdown();
-    showAuthMessage(
-      context,
-      'Un nouveau code est en route.',
-      isError: false,
-    );
+    try {
+      await context
+          .read<AuthController>()
+          .resendEmailVerification(widget.email);
+      if (!mounted) return;
+      _startCountdown();
+      showAuthMessage(
+        context,
+        'Un nouveau code est en route.',
+        isError: false,
+      );
+    } on AuthException catch (error) {
+      if (mounted) showAuthMessage(context, error.message);
+    }
   }
 
   Future<void> _verify() async {
@@ -92,10 +102,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
     }
     FocusScope.of(context).unfocus();
     setState(() => _verifying = true);
-    await context.read<AuthController>().confirmEmailVerification();
-    if (!mounted) return;
-    setState(() => _verifying = false);
-    _showWelcome();
+    try {
+      await context.read<AuthController>().verifyEmailOtp(
+            email: widget.email,
+            token: _code,
+          );
+      if (!mounted) return;
+      setState(() => _verifying = false);
+      _showWelcome();
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _verifying = false);
+      showAuthMessage(context, error.message);
+    }
   }
 
   void _skip() {
@@ -167,7 +186,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   : Icons.shopping_bag_outlined,
               onPressed: () {
                 Navigator.of(sheetContext).pop();
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                final redirect = widget.redirect;
+                if (redirect != null) {
+                  Navigator.of(context)
+                      .pushReplacementNamed(redirect.routeName);
+                } else {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
               },
             ).fadeSlideIn(delay: const Duration(milliseconds: 200)),
           ],

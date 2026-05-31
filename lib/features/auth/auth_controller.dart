@@ -21,6 +21,7 @@ class AuthController extends ChangeNotifier {
 
   AuthUser? _user;
   String? _accessToken;
+  _PendingSignUp? _pendingSignUp;
   bool _initialized = false;
   bool _busy = false;
 
@@ -29,6 +30,7 @@ class AuthController extends ChangeNotifier {
   bool get initialized => _initialized;
   bool get isBusy => _busy;
   bool get isAuthenticated => _user != null;
+  bool get needsEmailVerification => _pendingSignUp != null && _user == null;
 
   Future<void> restore() async {
     try {
@@ -78,9 +80,15 @@ class AuthController extends ChangeNotifier {
         );
       }
       if (response.session == null) {
-        throw AuthException(
-          'Compte cree. Verifiez votre e-mail avant de vous connecter.',
+        _pendingSignUp = _PendingSignUp(
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: normalizedEmail,
+          phone: phone.trim(),
+          businessName: businessName.trim(),
+          role: appRole,
         );
+        return;
       }
       final profile = await _upsertProfile(
         id: authUser.id,
@@ -195,6 +203,24 @@ class AuthController extends ChangeNotifier {
     return _userFromProfile(Map<String, dynamic>.from(rows.first as Map));
   }
 
+  Future<AuthUser> _loadOrCreateVerifiedProfile(supabase.User authUser) async {
+    final pending = _pendingSignUp;
+    final email = (authUser.email ?? '').trim().toLowerCase();
+    if (pending != null && pending.email == email) {
+      return _upsertProfile(
+        id: authUser.id,
+        email: pending.email,
+        firstName: pending.firstName,
+        lastName: pending.lastName,
+        role: pending.role,
+        phone: pending.phone,
+        businessName: pending.businessName,
+        emailVerified: authUser.emailConfirmedAt != null,
+      );
+    }
+    return _loadProfile(authUser);
+  }
+
   Future<void> signInWithProvider(String provider) async {
     throw AuthException('Connexion $provider indisponible pour le moment.');
   }
@@ -247,6 +273,60 @@ class AuthController extends ChangeNotifier {
     final current = _user;
     if (current == null) return;
     await _refreshCurrentProfile();
+  }
+
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    final normalized = email.trim().toLowerCase();
+    final cleanToken = token.trim();
+    if (normalized.isEmpty || cleanToken.isEmpty) {
+      throw AuthException('Saisissez le code de verification recu par e-mail.');
+    }
+
+    try {
+      final response = await supabase.Supabase.instance.client.auth.verifyOTP(
+        email: normalized,
+        token: cleanToken,
+        type: supabase.OtpType.signup,
+      );
+      final session = response.session;
+      final authUser = response.user;
+      if (session == null || authUser == null) {
+        throw AuthException(
+            'Verification impossible. Demandez un nouveau code.');
+      }
+      final profile = await _loadOrCreateVerifiedProfile(authUser);
+      _pendingSignUp = null;
+      await _setSession(profile, accessToken: session.accessToken);
+    } on AuthException {
+      rethrow;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } on supabase.PostgrestException catch (error) {
+      throw AuthException(_friendlyProfileMessage(error.message));
+    } catch (_) {
+      throw AuthException('Verification impossible pour le moment. Reessayez.');
+    }
+  }
+
+  Future<void> resendEmailVerification(String email) async {
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      throw AuthException('Adresse e-mail invalide.');
+    }
+
+    try {
+      await supabase.Supabase.instance.client.auth.resend(
+        type: supabase.OtpType.signup,
+        email: normalized,
+      );
+    } on supabase.AuthException catch (error) {
+      throw AuthException(_friendlySupabaseAuthMessage(error.message));
+    } catch (_) {
+      throw AuthException('Impossible de renvoyer le code. Reessayez.');
+    }
   }
 
   Future<void> updateProfile({
@@ -386,4 +466,22 @@ class AuthController extends ChangeNotifier {
     }
     return 'Compte cree, mais le profil NovaShop n\'a pas pu etre initialise. Reessayez la connexion.';
   }
+}
+
+class _PendingSignUp {
+  const _PendingSignUp({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.phone,
+    required this.businessName,
+    required this.role,
+  });
+
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String phone;
+  final String businessName;
+  final String role;
 }

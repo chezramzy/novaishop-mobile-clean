@@ -420,6 +420,25 @@ Regles :
 - Les erreurs Supabase doivent etre affichees.
 - Aucune sauvegarde locale du mot de passe n'est autorisee.
 
+### UC-AUTH-05 - Verifier son e-mail
+
+Objectif : confirmer que le compte vient bien de l'adresse e-mail declaree.
+
+Flux nominal :
+
+1. Apres inscription, Supabase envoie le code ou lien de verification.
+2. L'utilisateur saisit le code recu.
+3. L'application appelle Supabase Auth pour verifier l'OTP.
+4. Supabase retourne une session valide.
+5. Le profil `public.users` est cree ou recharge avec l'UUID Supabase Auth.
+
+Regles :
+
+- L'application ne doit jamais marquer un compte comme verifie sans validation Supabase Auth.
+- Le bouton "renvoyer le code" doit appeler Supabase, pas simuler une reussite.
+- Si le lien ou code expire, l'utilisateur doit pouvoir demander un nouveau code.
+- Si le projet Supabase retourne deja une session a l'inscription, l'application ne doit pas afficher un ecran OTP fictif.
+
 ### UC-PRO-01 - Modifier son profil
 
 Objectif : tenir a jour les informations personnelles.
@@ -469,6 +488,40 @@ Regles :
 
 - Les preferences locales sont autorisees uniquement pour l'UI.
 - Les reglages ne doivent pas contenir de validation metier locale.
+
+### UC-PRO-04 - Se deconnecter
+
+Objectif : fermer proprement la session d'un appareil.
+
+Flux nominal :
+
+1. L'utilisateur ouvre Profil ou Reglages.
+2. Il confirme la deconnexion.
+3. Supabase Auth ferme la session.
+4. L'application revient a un etat visiteur.
+
+Regles :
+
+- Aucun role ni droit ne doit survivre apres deconnexion.
+- Les preferences UI peuvent rester locales.
+- Les donnees metier protegees doivent etre rechargees depuis Supabase a la prochaine connexion.
+
+### UC-PRO-05 - Demander la suppression du compte
+
+Objectif : donner un chemin clair pour exercer un droit de suppression.
+
+Flux nominal :
+
+1. L'utilisateur ouvre Reglages.
+2. Il choisit Supprimer mon compte.
+3. L'application ouvre un message support pre-rempli ou un flux backend dedie si disponible.
+4. NovaShop traite la demande cote admin/support.
+
+Regles :
+
+- La suppression effective doit etre executee cote serveur/admin avec audit.
+- L'application mobile ne doit pas supprimer localement des donnees en pretendant que le compte est supprime.
+- Les impacts sur commandes, demandes partenaires, produits et documents KYC doivent etre controles avant execution.
 
 ## 6. Cas d'utilisation catalogue et produit
 
@@ -734,6 +787,20 @@ Regles :
 - Un client ne lit que ses favoris.
 - Un produit non publie ne doit pas etre favorise publiquement.
 
+### UC-WISH-02 - Retirer un favori
+
+Flux :
+
+1. Le client ouvre Favoris ou une fiche produit.
+2. Il retire le produit des favoris.
+3. Supabase supprime la ligne `wishlist_items`.
+4. La liste se rafraichit.
+
+Regles :
+
+- Le retrait doit etre serveur/RLS.
+- Un echec Supabase doit laisser le favori visible et afficher une erreur.
+
 ### UC-ADDR-01 - Ajouter une adresse
 
 Flux :
@@ -746,6 +813,21 @@ Regles :
 
 - Une adresse appartient a un utilisateur.
 - La suppression et la mise par defaut sont serveur/RLS.
+
+### UC-ADDR-02 - Modifier, supprimer ou definir une adresse par defaut
+
+Flux :
+
+1. Le client ouvre son carnet d'adresses.
+2. Il choisit modifier, supprimer ou definir par defaut.
+3. Supabase applique l'action sur ses propres adresses.
+4. L'interface affiche l'etat a jour.
+
+Regles :
+
+- Une suppression ne doit jamais etre seulement locale.
+- Une adresse par defaut doit rester unique par utilisateur si la contrainte existe cote serveur.
+- Les commandes deja passees doivent conserver leur historique d'adresse.
 
 ### UC-COUPON-01 - Valider un coupon
 
@@ -1265,6 +1347,22 @@ Regles :
 
 - L'IA ne publie jamais directement.
 - L'admin garde la validation finale.
+
+### UC-AI-03 - Historique local non metier de l'assistant
+
+Objectif : garder une conversation confortable sans en faire une source de verite.
+
+Flux :
+
+1. L'utilisateur discute avec l'assistant.
+2. L'application peut conserver l'historique localement pour l'ergonomie.
+3. Une erreur de restauration locale redemarre simplement une conversation vide.
+
+Regles :
+
+- Cet historique ne doit jamais servir a valider une commande, un paiement, une demande partenaire, un produit ou un role.
+- Les donnees metier citees par l'assistant doivent venir de Supabase quand elles sont necessaires.
+- Si un jour l'historique devient support/admin, il devra migrer vers Supabase avec RLS.
 
 ## 15. Cas d'utilisation mises a jour Android
 

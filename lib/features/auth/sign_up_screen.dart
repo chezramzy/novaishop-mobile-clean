@@ -77,14 +77,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       if (!mounted) return;
       final redirect = widget.redirect;
+      if (auth.needsEmailVerification) {
+        Navigator.of(context).pushReplacementNamed(
+          RouteNames.verification,
+          arguments: AuthVerificationArgs(
+            email: _email.text.trim(),
+            redirect: redirect,
+          ),
+        );
+        return;
+      }
       if (redirect != null) {
         Navigator.of(context).pushReplacementNamed(redirect.routeName);
         return;
       }
-      Navigator.of(context).pushReplacementNamed(
-        RouteNames.verification,
-        arguments: _email.text.trim(),
-      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthException catch (error) {
       if (mounted) showAuthMessage(context, error.message);
     } catch (_) {

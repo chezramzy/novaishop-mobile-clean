@@ -9,3 +9,13 @@ class AuthRedirect {
   final String routeName;
   final AccountRole signUpRole;
 }
+
+class AuthVerificationArgs {
+  const AuthVerificationArgs({
+    required this.email,
+    this.redirect,
+  });
+
+  final String email;
+  final AuthRedirect? redirect;
+}

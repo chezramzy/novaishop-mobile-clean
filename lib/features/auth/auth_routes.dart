@@ -25,9 +25,15 @@ final FeatureRoutes authRoutes = FeatureRoutes(<String, RouteArgsBuilder>{
       role: args is AccountRole ? args : AccountRole.individualBuyer,
     );
   },
-  RouteNames.verification: (args) => VerificationScreen(
-        email: args is String ? args : '',
-      ),
+  RouteNames.verification: (args) {
+    if (args is AuthVerificationArgs) {
+      return VerificationScreen(
+        email: args.email,
+        redirect: args.redirect,
+      );
+    }
+    return VerificationScreen(email: args is String ? args : '');
+  },
   RouteNames.forgotPassword: (_) => const ForgotPasswordScreen(),
   RouteNames.resetPassword: (args) => ResetPasswordScreen(
         email: args is String ? args : '',
