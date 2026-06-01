@@ -22,6 +22,7 @@ class CouponRepository {
     required String code,
     required double orderAmount,
   }) async {
+    _requireSession('Reconnectez-vous pour utiliser un coupon.');
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) {
       return const CouponValidationResult(
@@ -30,49 +31,21 @@ class CouponRepository {
       );
     }
     try {
-      final rows = await Supabase.instance.client
-          .from('coupons')
-          .select()
-          .eq('code', normalized)
-          .eq('active', true)
-          .limit(1);
+      final rows = await Supabase.instance.client.rpc(
+        'validate_coupon_code',
+        params: {
+          'p_code': normalized,
+          'p_order_amount': orderAmount,
+        },
+      ) as List<dynamic>;
       if (rows.isEmpty) {
         return const CouponValidationResult(
           valid: false,
-          message: 'Coupon introuvable ou inactif.',
+          message: 'Coupon introuvable, inactif ou non applicable.',
         );
       }
 
       final coupon = Coupon.fromJson(_couponJson(rows.first as Map));
-      final now = DateTime.now().toUtc();
-      final validFrom = DateTime.tryParse(coupon.validFrom)?.toUtc();
-      final validTo = DateTime.tryParse(coupon.validTo)?.toUtc();
-      if (validFrom != null && now.isBefore(validFrom)) {
-        return const CouponValidationResult(
-          valid: false,
-          message: "Ce coupon n'est pas encore actif.",
-        );
-      }
-      if (validTo != null && now.isAfter(validTo)) {
-        return const CouponValidationResult(
-          valid: false,
-          message: 'Ce coupon a expire.',
-        );
-      }
-      if (orderAmount < coupon.minOrderAmount) {
-        return CouponValidationResult(
-          valid: false,
-          message:
-              'Montant minimum requis: ${coupon.minOrderAmount.toStringAsFixed(0)} XOF.',
-        );
-      }
-      if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
-        return const CouponValidationResult(
-          valid: false,
-          message: "Ce coupon a deja atteint sa limite d'utilisation.",
-        );
-      }
-
       final discount = coupon.isPercentage
           ? orderAmount * (coupon.discountValue / 100)
           : coupon.discountValue;

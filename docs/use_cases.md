@@ -840,7 +840,8 @@ Flux :
 Regles :
 
 - Un coupon partenaire reste interne.
-- La validation ne doit pas se baser sur une liste locale.
+- La validation ne doit pas se baser sur une liste locale ni sur une lecture publique de `coupons`.
+- Le client doit passer par une verification Supabase/RPC qui ne retourne pas `vendor_id`.
 - Le coupon n'est definitif qu'au moment de la commande/paiement reel.
 
 ## 9. Cas d'utilisation demande partenaire
@@ -1065,6 +1066,8 @@ Flux :
 Regles :
 
 - Un coupon partenaire ne doit pas exposer l'identite partenaire au client.
+- Un partenaire ne doit lire et modifier que ses propres coupons.
+- Les coupons ne doivent pas etre listables publiquement depuis l'application.
 - Les coupons doivent respecter les contraintes d'usage.
 
 ### UC-PART-07 - Upload de medias produit
@@ -1748,6 +1751,7 @@ Continuer a surveiller :
 - advisors Supabase ;
 - policies multiples permissives ;
 - helper functions `SECURITY DEFINER` exposees ;
+- RPC volontairement exposees comme `validate_coupon_code`, avec retour minimal et sans identifiant partenaire ;
 - indexes inutilises apres vrai trafic ;
 - logs PostgREST.
 
